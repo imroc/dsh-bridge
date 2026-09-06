@@ -208,3 +208,30 @@ test('AuthManager handles adminPolicy and remote admin unlocking', async () => {
   auth.dispose()
 })
 
+
+test('v2.10.5: password_only 模式 + 未设密码时 verifyPassword 放行（防自我锁死）', async () => {
+  const auth = new AuthManager({
+    config: { enabled: true, mode: 'password_only' }, // 无密码
+  })
+  try {
+    // 此前实现会拒绝（管理员尚未设置访问密码）→ 登录墙 401 → 进不去面板设密码 → 死锁。
+    // 现应与 token_and_password 一致：无哈希可校验即放行，让管理员能进入面板完成初始化。
+    const res = await auth.verifyPassword('anything', '192.168.1.50')
+    assert.equal(res.success, true, 'password_only + 无密码必须放行（否则自我锁死）')
+  } finally {
+    auth.dispose()
+  }
+})
+
+test('v2.10.5: password_only 模式 + 已设密码时错误密码被拒绝（真实门禁生效）', async () => {
+  const auth = new AuthManager({ config: { enabled: true, mode: 'password_only' } })
+  try {
+    await auth.setPassword('real-pass-1')
+    const wrong = await auth.verifyPassword('wrong-pass', '192.168.1.51')
+    assert.equal(wrong.success, false)
+    const right = await auth.verifyPassword('real-pass-1', '192.168.1.51')
+    assert.equal(right.success, true)
+  } finally {
+    auth.dispose()
+  }
+})

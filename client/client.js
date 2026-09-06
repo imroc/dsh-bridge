@@ -1820,6 +1820,11 @@ var AccessAuthCard = React.memo(function AccessAuthCard2({ auth, rpcCall, onUpda
     const next = !enabled;
     const noPasswordYet = !auth?.hasPassword && !auth?.hasAdminPassword;
     if (next && noPasswordYet && mode !== "token_only") {
+      if (mode === "password_only") {
+        window.alert("\u300C\u4EC5\u5BC6\u7801 / PIN \u7801\u767B\u5F55\u300D\u6A21\u5F0F\u5FC5\u987B\u5148\u8BBE\u7F6E\u8BBF\u95EE\u5BC6\u7801\u624D\u80FD\u5F00\u542F\u5B89\u5168\u9632\u62A4\u3002\n\n\u8BF7\u5148\u5728\u4E0B\u65B9\u300C\u8BBE\u7F6E\u5916\u90E8\u8BBF\u5BA2\u8BBF\u95EE\u5BC6\u7801 / PIN \u7801\u300D\u8F93\u5165\u5BC6\u7801\u5E76\u70B9\u51FB\u300C\u4FDD\u5B58\u8BBF\u95EE\u5BC6\u7801\u300D\uFF0C\u7136\u540E\u518D\u5F00\u542F\u3002");
+        setTopMsg({ ok: false, text: "\u8BF7\u5148\u8BBE\u7F6E\u8BBF\u5BA2\u8BBF\u95EE\u5BC6\u7801\uFF0C\u518D\u5F00\u542F\u5B89\u5168\u9632\u62A4" });
+        return;
+      }
       const go = window.confirm(
         '\u26A0\uFE0F \u60A8\u5C1A\u672A\u8BBE\u7F6E\u4EFB\u4F55\u8BBF\u95EE\u5BC6\u7801\u6216\u7BA1\u7406\u5BC6\u7801\u3002\n\n\u5F00\u542F\u5B89\u5168\u9632\u62A4\u540E\uFF0C\u4EFB\u4F55\u77E5\u9053\u5C40\u57DF\u7F51 IP / \u96A7\u9053\u5730\u5740\u7684\u8BBF\u5BA2\u4ECD\u53EF\u76F4\u63A5\u8FDB\u5165\uFF08\u5F53\u524D\u76F8\u5F53\u4E8E"\u514D\u5BC6\u5F00\u653E"\u72B6\u6001\uFF09\u3002\n\n\u662F\u5426\u4ECD\u8981\u5F00\u542F\uFF1F\u5EFA\u8BAE\u5148\u5173\u95ED\uFF0C\u5728\u4E0B\u65B9\u300C\u8BBE\u7F6E\u5916\u90E8\u8BBF\u5BA2\u8BBF\u95EE\u5BC6\u7801\u300D\u5904\u8BBE\u7F6E\u5BC6\u7801\u540E\u518D\u5F00\u542F\u3002'
       );
@@ -1851,6 +1856,11 @@ var AccessAuthCard = React.memo(function AccessAuthCard2({ auth, rpcCall, onUpda
     }
   };
   const handleChangeMode = async (m) => {
+    if (m === "password_only" && !auth?.hasPassword && !auth?.hasAdminPassword) {
+      window.alert("\u300C\u4EC5\u5BC6\u7801 / PIN \u7801\u767B\u5F55\u300D\u9700\u8981\u5148\u8BBE\u7F6E\u8BBF\u95EE\u5BC6\u7801\u3002\n\n\u8BF7\u5728\u4E0B\u65B9\u300C\u8BBE\u7F6E\u5916\u90E8\u8BBF\u5BA2\u8BBF\u95EE\u5BC6\u7801 / PIN \u7801\u300D\u5904\u8F93\u5165\u5BC6\u7801\u5E76\u70B9\u51FB\u300C\u4FDD\u5B58\u8BBF\u95EE\u5BC6\u7801\u300D\uFF0C\u7136\u540E\u518D\u5207\u6362\u5230\u6B64\u6A21\u5F0F\u6216\u5F00\u542F\u5B89\u5168\u9632\u62A4\u3002");
+      setTopMsg({ ok: false, text: "\u8BF7\u5148\u5728\u4E0B\u65B9\u8BBE\u7F6E\u8BBF\u5BA2\u8BBF\u95EE\u5BC6\u7801\uFF0C\u518D\u5207\u6362\u4E3A\u300C\u4EC5\u5BC6\u7801\u767B\u5F55\u300D\u6A21\u5F0F" });
+      return;
+    }
     const prev = mode;
     setMode(m);
     try {
@@ -2064,7 +2074,10 @@ var AccessAuthCard = React.memo(function AccessAuthCard2({ auth, rpcCall, onUpda
       // =========================================================================
       // ---- 第一道防线：外部访问门禁（控制谁能进入 Web 界面使用 AI） ----
       // =========================================================================
-      enabled && React.createElement(
+      // 第一道防线卡片：已开启防护，或【尚未设置任何密码】时始终显示——
+      // 未设密码时必须给出密码输入框，否则用户开启防护（尤其 password_only）后
+      // 会因无密码被锁在登录墙外且找不到设密码入口（自我锁死，v2.10.5 修复）。
+      (enabled || !auth?.hasPassword) && React.createElement(
         "div",
         { style: s.card },
         React.createElement(

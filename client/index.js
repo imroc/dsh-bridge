@@ -758,9 +758,15 @@ const AccessAuthCard = React.memo(function AccessAuthCard({ auth, rpcCall, onUpd
   const handleToggleEnabled = async () => {
     const prev = enabled;
     const next = !enabled;
-    // 开启安全防护但尚未设置任何密码：明确提示当前是"裸奔"状态，避免用户误以为已受密码保护
+    // 开启安全防护但尚未设置任何密码
     const noPasswordYet = !auth?.hasPassword && !auth?.hasAdminPassword;
     if (next && noPasswordYet && mode !== 'token_only') {
+      if (mode === 'password_only') {
+        // password_only 模式必须已有密码才能开启（服务端同样强制），就地引导设密码
+        window.alert('「仅密码 / PIN 码登录」模式必须先设置访问密码才能开启安全防护。\n\n请先在下方「设置外部访客访问密码 / PIN 码」输入密码并点击「保存访问密码」，然后再开启。');
+        setTopMsg({ ok: false, text: '请先设置访客访问密码，再开启安全防护' });
+        return;
+      }
       const go = window.confirm(
         '⚠️ 您尚未设置任何访问密码或管理密码。\n\n开启安全防护后，任何知道局域网 IP / 隧道地址的访客仍可直接进入（当前相当于"免密开放"状态）。\n\n是否仍要开启？建议先关闭，在下方「设置外部访客访问密码」处设置密码后再开启。'
       );
@@ -798,6 +804,13 @@ const AccessAuthCard = React.memo(function AccessAuthCard({ auth, rpcCall, onUpd
   };
 
   const handleChangeMode = async (m) => {
+    // 切换到「仅密码登录」但尚未设置任何密码：提前引导先设密码，避免切过去后
+    // 无密码可登录（服务端同样有守卫拒绝，双保险防自我锁死）
+    if (m === 'password_only' && !auth?.hasPassword && !auth?.hasAdminPassword) {
+      window.alert('「仅密码 / PIN 码登录」需要先设置访问密码。\n\n请在下方「设置外部访客访问密码 / PIN 码」处输入密码并点击「保存访问密码」，然后再切换到此模式或开启安全防护。');
+      setTopMsg({ ok: false, text: '请先在下方设置访客访问密码，再切换为「仅密码登录」模式' });
+      return;
+    }
     const prev = mode;
     setMode(m);
     try {
@@ -974,7 +987,10 @@ const AccessAuthCard = React.memo(function AccessAuthCard({ auth, rpcCall, onUpd
       // =========================================================================
       // ---- 第一道防线：外部访问门禁（控制谁能进入 Web 界面使用 AI） ----
       // =========================================================================
-      enabled && React.createElement('div', { style: s.card },
+      // 第一道防线卡片：已开启防护，或【尚未设置任何密码】时始终显示——
+      // 未设密码时必须给出密码输入框，否则用户开启防护（尤其 password_only）后
+      // 会因无密码被锁在登录墙外且找不到设密码入口（自我锁死，v2.10.5 修复）。
+      (enabled || !auth?.hasPassword) && React.createElement('div', { style: s.card },
         React.createElement('div', { style: { marginBottom: 14 } },
           React.createElement('div', { style: { ...s.label, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 } },
             '🛡️ 第一道防线：外部访问门禁（控制谁能使用 AI）',
