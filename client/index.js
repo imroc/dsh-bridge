@@ -758,11 +758,23 @@ const AccessAuthCard = React.memo(function AccessAuthCard({ auth, rpcCall, onUpd
   const handleToggleEnabled = async () => {
     const prev = enabled;
     const next = !enabled;
+    // 开启安全防护但尚未设置任何密码：明确提示当前是"裸奔"状态，避免用户误以为已受密码保护
+    const noPasswordYet = !auth?.hasPassword && !auth?.hasAdminPassword;
+    if (next && noPasswordYet && mode !== 'token_only') {
+      const go = window.confirm(
+        '⚠️ 您尚未设置任何访问密码或管理密码。\n\n开启安全防护后，任何知道局域网 IP / 隧道地址的访客仍可直接进入（当前相当于"免密开放"状态）。\n\n是否仍要开启？建议先关闭，在下方「设置外部访客访问密码」处设置密码后再开启。'
+      );
+      if (!go) return;
+    }
     setEnabled(next);
     try {
       const res = await rpcCall(BRIDGE_ENDPOINTS.authUpdateConfig, { enabled: next });
       if (!res?.ok) throw new Error(res?.error?.message || '更新失败');
-      setTopMsg({ ok: true, text: next ? '✓ 访问安全认证已开启（现有登录态已刷新）' : '✓ 访问安全认证已关闭（访问免密，管理保护不受影响）' });
+      setTopMsg({ ok: true, text: next
+        ? (noPasswordYet
+          ? '✓ 安全防护已开启（注意：尚未设置密码，访客仍可免密进入，请立即在下方设置访问密码）'
+          : '✓ 访问安全认证已开启（现有登录态已刷新）')
+        : '✓ 访问安全认证已关闭（访问免密，管理保护不受影响）' });
       onUpdate?.();
     } catch (e) {
       setEnabled(prev);
@@ -2961,11 +2973,18 @@ function BridgePanel({ rpcCall }) {
 
   const auth = status?.auth;
   const policy = auth?.adminPolicy ?? 'password_unlock';
+  // 系统是否已配置任何密码（访客访问密码 或 独立管理密码）。
+  const hasAnyPassword = !!(auth?.hasPassword || auth?.hasAdminPassword);
   // 锁屏条件：远程 + 管理保护开启（adminProtection）+ 未解锁 + 非宽松策略。
   // 不依赖 auth.enabled：即使访问认证关闭，管理保护仍独立生效，上锁后必须显示锁屏。
   // local_only 也锁定（显示"仅限本机管理"专属锁屏）。
+  // 关键修正：仅当系统【已配置密码】时才需要输入密码解锁——全新安装（无任何密码）时
+  // 服务端没有可校验的哈希，任何输入都会被放行（宽松降级），此时展示"输入管理密码"
+  // 锁屏只会误导用户输一个假密码；应直接放行进入面板并提示先设置密码。
+  // local_only 例外：无论是否已设密码，远程一律禁止管理（策略语义高于空密码豁免）。
   const isLocked = !isLocalhost && auth?.adminProtection !== false
-    && policy !== 'open' && !adminUnlocked;
+    && policy !== 'open' && !adminUnlocked
+    && (policy === 'local_only' || hasAnyPassword);
 
   // 远程设备被锁定：全局展示锁定页面，阻断所有 Tab 的查看与操作
   if (isLocked) {
@@ -3098,7 +3117,7 @@ function BridgePanel({ rpcCall }) {
       }, '🔒 重新锁定后台'),
     ),
 
-    // 未解锁时的顶部引导条
+    // 未解锁时的顶部引导条：未设密码 → 提示先设密码；已设密码 → 提示解锁
     !isLocalhost && !adminUnlocked && auth?.enabled && policy !== 'open' && React.createElement('div', {
       style: {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -3107,12 +3126,20 @@ function BridgePanel({ rpcCall }) {
         marginBottom: 14, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary,#92400e)',
       },
     },
-      React.createElement('span', null, '🔒 后台管理权限未解锁（修改敏感配置需先解锁）'),
-      React.createElement('button', {
+      React.createElement('span', null,
+        hasAnyPassword
+          ? '🔒 后台管理权限未解锁（修改敏感配置需先解锁）'
+          : '⚠️ 尚未设置任何访问密码 / 管理密码，远程访客可免密进入！'
+      ),
+      hasAnyPassword ? React.createElement('button', {
         type: 'button',
         style: { ...s.btnPri, height: 24, fontSize: 11, padding: '0 10px', background: '#d97706' },
         onClick: () => setShowUnlockModal(true),
-      }, '🔑 解锁管理权限'),
+      }, '🔑 解锁管理权限') : React.createElement('button', {
+        type: 'button',
+        style: { ...s.btnPri, height: 24, fontSize: 11, padding: '0 10px', background: '#d97706' },
+        onClick: () => setActiveTab('security'),
+      }, '🔐 立即设置密码'),
     ),
 
     React.createElement(VersionBanner, { rpcCall: authRpcCall }),
@@ -3404,8 +3431,11 @@ function setupMobileExperience(rpcCall, ctx) {
         }
       }
 
-      // 点击会话项后平滑收起抽屉
-      const sessionRow = e.target.closest('a, div[class*="sessionRow"], div[role="treeitem"]');
+      // 点击会话项后平滑收起抽屉。
+      // 注意：不能匹配 div[role="treeitem"] —— DSH 的 workspace 分组行（projectRow）
+      // 同样带 role="treeitem"，会误伤"点击分组名展开/收起"的手势（issue #31）。
+      // 会话行已被 div[class*="sessionRow"] 覆盖；搜索结果行是 <button>，不匹配 div。
+      const sessionRow = e.target.closest('a, div[class*="sessionRow"]');
       if (sessionRow) {
         setTimeout(() => {
           if (document.body.classList.contains('dsh-drawer-open')) {
@@ -3434,7 +3464,8 @@ function setupMobileExperience(rpcCall, ctx) {
     const sidebar = document.querySelector('div[class*="_sidebarCol"]');
     if (!sidebar || !sidebar.contains(e.target)) return;
 
-    const sessionRow = e.target.closest('div[class*="sessionRow"], div[role="treeitem"]');
+    // 长按会话项呼出操作菜单。同样不能匹配 div[role="treeitem"]（分组行同标签，issue #31）。
+    const sessionRow = e.target.closest('div[class*="sessionRow"]');
     if (!sessionRow) return;
 
     longPressTimer = setTimeout(() => {

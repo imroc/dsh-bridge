@@ -1786,11 +1786,18 @@ var AccessAuthCard = React.memo(function AccessAuthCard2({ auth, rpcCall, onUpda
   const handleToggleEnabled = async () => {
     const prev = enabled;
     const next = !enabled;
+    const noPasswordYet = !auth?.hasPassword && !auth?.hasAdminPassword;
+    if (next && noPasswordYet && mode !== "token_only") {
+      const go = window.confirm(
+        '\u26A0\uFE0F \u60A8\u5C1A\u672A\u8BBE\u7F6E\u4EFB\u4F55\u8BBF\u95EE\u5BC6\u7801\u6216\u7BA1\u7406\u5BC6\u7801\u3002\n\n\u5F00\u542F\u5B89\u5168\u9632\u62A4\u540E\uFF0C\u4EFB\u4F55\u77E5\u9053\u5C40\u57DF\u7F51 IP / \u96A7\u9053\u5730\u5740\u7684\u8BBF\u5BA2\u4ECD\u53EF\u76F4\u63A5\u8FDB\u5165\uFF08\u5F53\u524D\u76F8\u5F53\u4E8E"\u514D\u5BC6\u5F00\u653E"\u72B6\u6001\uFF09\u3002\n\n\u662F\u5426\u4ECD\u8981\u5F00\u542F\uFF1F\u5EFA\u8BAE\u5148\u5173\u95ED\uFF0C\u5728\u4E0B\u65B9\u300C\u8BBE\u7F6E\u5916\u90E8\u8BBF\u5BA2\u8BBF\u95EE\u5BC6\u7801\u300D\u5904\u8BBE\u7F6E\u5BC6\u7801\u540E\u518D\u5F00\u542F\u3002'
+      );
+      if (!go) return;
+    }
     setEnabled(next);
     try {
       const res = await rpcCall(BRIDGE_ENDPOINTS.authUpdateConfig, { enabled: next });
       if (!res?.ok) throw new Error(res?.error?.message || "\u66F4\u65B0\u5931\u8D25");
-      setTopMsg({ ok: true, text: next ? "\u2713 \u8BBF\u95EE\u5B89\u5168\u8BA4\u8BC1\u5DF2\u5F00\u542F\uFF08\u73B0\u6709\u767B\u5F55\u6001\u5DF2\u5237\u65B0\uFF09" : "\u2713 \u8BBF\u95EE\u5B89\u5168\u8BA4\u8BC1\u5DF2\u5173\u95ED\uFF08\u8BBF\u95EE\u514D\u5BC6\uFF0C\u7BA1\u7406\u4FDD\u62A4\u4E0D\u53D7\u5F71\u54CD\uFF09" });
+      setTopMsg({ ok: true, text: next ? noPasswordYet ? "\u2713 \u5B89\u5168\u9632\u62A4\u5DF2\u5F00\u542F\uFF08\u6CE8\u610F\uFF1A\u5C1A\u672A\u8BBE\u7F6E\u5BC6\u7801\uFF0C\u8BBF\u5BA2\u4ECD\u53EF\u514D\u5BC6\u8FDB\u5165\uFF0C\u8BF7\u7ACB\u5373\u5728\u4E0B\u65B9\u8BBE\u7F6E\u8BBF\u95EE\u5BC6\u7801\uFF09" : "\u2713 \u8BBF\u95EE\u5B89\u5168\u8BA4\u8BC1\u5DF2\u5F00\u542F\uFF08\u73B0\u6709\u767B\u5F55\u6001\u5DF2\u5237\u65B0\uFF09" : "\u2713 \u8BBF\u95EE\u5B89\u5168\u8BA4\u8BC1\u5DF2\u5173\u95ED\uFF08\u8BBF\u95EE\u514D\u5BC6\uFF0C\u7BA1\u7406\u4FDD\u62A4\u4E0D\u53D7\u5F71\u54CD\uFF09" });
       onUpdate?.();
     } catch (e) {
       setEnabled(prev);
@@ -4196,7 +4203,8 @@ function BridgePanel({ rpcCall }) {
   }
   const auth = status?.auth;
   const policy = auth?.adminPolicy ?? "password_unlock";
-  const isLocked = !isLocalhost && auth?.adminProtection !== false && policy !== "open" && !adminUnlocked;
+  const hasAnyPassword = !!(auth?.hasPassword || auth?.hasAdminPassword);
+  const isLocked = !isLocalhost && auth?.adminProtection !== false && policy !== "open" && !adminUnlocked && (policy === "local_only" || hasAnyPassword);
   if (isLocked) {
     return React.createElement(
       "div",
@@ -4367,7 +4375,7 @@ function BridgePanel({ rpcCall }) {
         onClick: handleLockAdmin
       }, "\u{1F512} \u91CD\u65B0\u9501\u5B9A\u540E\u53F0")
     ),
-    // 未解锁时的顶部引导条
+    // 未解锁时的顶部引导条：未设密码 → 提示先设密码；已设密码 → 提示解锁
     !isLocalhost && !adminUnlocked && auth?.enabled && policy !== "open" && React.createElement(
       "div",
       {
@@ -4384,12 +4392,20 @@ function BridgePanel({ rpcCall }) {
           color: "var(--dsw-alias-state-warn-primary,#92400e)"
         }
       },
-      React.createElement("span", null, "\u{1F512} \u540E\u53F0\u7BA1\u7406\u6743\u9650\u672A\u89E3\u9501\uFF08\u4FEE\u6539\u654F\u611F\u914D\u7F6E\u9700\u5148\u89E3\u9501\uFF09"),
-      React.createElement("button", {
+      React.createElement(
+        "span",
+        null,
+        hasAnyPassword ? "\u{1F512} \u540E\u53F0\u7BA1\u7406\u6743\u9650\u672A\u89E3\u9501\uFF08\u4FEE\u6539\u654F\u611F\u914D\u7F6E\u9700\u5148\u89E3\u9501\uFF09" : "\u26A0\uFE0F \u5C1A\u672A\u8BBE\u7F6E\u4EFB\u4F55\u8BBF\u95EE\u5BC6\u7801 / \u7BA1\u7406\u5BC6\u7801\uFF0C\u8FDC\u7A0B\u8BBF\u5BA2\u53EF\u514D\u5BC6\u8FDB\u5165\uFF01"
+      ),
+      hasAnyPassword ? React.createElement("button", {
         type: "button",
         style: { ...s.btnPri, height: 24, fontSize: 11, padding: "0 10px", background: "#d97706" },
         onClick: () => setShowUnlockModal(true)
-      }, "\u{1F511} \u89E3\u9501\u7BA1\u7406\u6743\u9650")
+      }, "\u{1F511} \u89E3\u9501\u7BA1\u7406\u6743\u9650") : React.createElement("button", {
+        type: "button",
+        style: { ...s.btnPri, height: 24, fontSize: 11, padding: "0 10px", background: "#d97706" },
+        onClick: () => setActiveTab("security")
+      }, "\u{1F510} \u7ACB\u5373\u8BBE\u7F6E\u5BC6\u7801")
     ),
     React.createElement(VersionBanner, { rpcCall: authRpcCall }),
     React.createElement(TabBar, { active: activeTab, onChange: setActiveTab, dots }),
