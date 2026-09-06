@@ -242,7 +242,12 @@ const httpServer = createServer((req, res) => {
       res.end('No tunnel client connected. Please enable the custom tunnel in dsh-bridge.');
       return;
     }
-    const stripped = url.slice(PATH_PREFIX.length) || '/';
+    // 剥离前缀。注意：/PATH?auth=x 这种「无尾斜杠 + query」形态 slice 后会得到 ?auth=x
+    // （以 ? 开头、缺 /），http 客户端会把它作为请求行 GET ?auth=x HTTP/1.1 → 上游 400。
+    // 以 ? 开头时补回 /，保证转发路径永远是合法的 origin-form。
+    let stripped = url.slice(PATH_PREFIX.length);
+    if (stripped.startsWith('?')) stripped = '/' + stripped;
+    if (stripped === '') stripped = '/';
     forwardRequest(ws, req, res, stripped);
     return;
   }
@@ -277,10 +282,12 @@ httpServer.on('upgrade', (req, socket, head) => {
   const [, tunnelWs] = [...tunnelClients.entries()][0] ?? [];
   if (!tunnelWs) { socket.destroy(); return; }
 
-  // 剥前缀
+  // 剥前缀（与 HTTP 分支相同处理：/PATH?query 无尾斜杠时补回 /，避免非法 origin-form）
   let forwardPath = url;
   if (url === PATH_PREFIX || url.startsWith(PATH_PREFIX + '/') || url.startsWith(PATH_PREFIX + '?')) {
-    forwardPath = url.slice(PATH_PREFIX.length) || '/';
+    forwardPath = url.slice(PATH_PREFIX.length);
+    if (forwardPath.startsWith('?')) forwardPath = '/' + forwardPath;
+    if (forwardPath === '') forwardPath = '/';
   }
 
   const wsId = `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
