@@ -103,3 +103,27 @@ test('stripSessionProjections 剥离 session.list/history 大投影字段（共�
   assert.equal(stripSessionProjections('/api/session.list', noProj).stripped, false)
 })
 
+
+test('stripSessionProjections 支持 gzip 编码的 session.list 响应（PR #29 gzip-aware）', async () => {
+  const { stripSessionProjections } = await import('../lib/session-strip.js')
+  const { gzipSync } = await import('node:zlib')
+
+  const raw = Buffer.from(JSON.stringify({
+    result: { ok: true, value: { items: [
+      { id: 'a', projections: { values: { contextHeaders: 'x'.repeat(64), title: 'keep' } } },
+    ] } },
+  }))
+  const gz = gzipSync(raw)
+
+  // 传入 content-encoding: gzip 时应先解压再剥离
+  const r = stripSessionProjections('/api/session.list', gz, 'gzip')
+  assert.equal(r.stripped, true, 'gzip 响应应能成功剥离')
+  const j = JSON.parse(r.body.toString())
+  assert.equal(j.result.value.items[0].projections.values.contextHeaders, undefined)
+  assert.equal(j.result.value.items[0].projections.values.title, 'keep')
+
+  // 未声明 gzip 却传入 gzip 数据 → 解析失败 → 原样返回（不破坏响应）
+  const r2 = stripSessionProjections('/api/session.list', gz, undefined)
+  assert.equal(r2.stripped, false)
+  assert.equal(r2.body, gz)
+})

@@ -239,3 +239,60 @@ test('issue #28 regression: DSH native origin (dshPort) can read loopback-token 
     authManager.dispose()
   }
 })
+
+test('ProxyServer gzip session.list 经局域网/CF 入口也剥离（PR #29 补齐所有远程入口）', async () => {
+  const { gzipSync } = await import('node:zlib')
+
+  // Backend 返回 gzip 压缩的 session.list（模拟 DSH 默认 gzip）
+  const backend = createServer((req, res) => {
+    if (req.url.startsWith('/api/session.list')) {
+      const payload = JSON.stringify({
+        result: { ok: true, value: { items: [
+          { id: 'a', projections: { values: { contextHeaders: 'x'.repeat(64), title: 'keep-title' } } },
+        ] } },
+      })
+      const gz = gzipSync(Buffer.from(payload))
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+        'Content-Length': gz.length,
+      })
+      res.end(gz)
+      return
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end('<html><head></head><body>ok</body></html>')
+  })
+  await new Promise((resolve) => backend.listen(0, '127.0.0.1', resolve))
+  const backendPort = backend.address().port
+
+  const authManager = new AuthManager({ config: { enabled: false } })
+  const proxy = new ProxyServer({
+    localPort: 0,
+    targetPort: backendPort,
+    authManager,
+    logger: { info: () => {}, warn: () => {}, error: () => {} },
+  })
+  await proxy.start()
+  const proxyPort = proxy.server.address().port
+
+  try {
+    const res = await doRequest({
+      host: '127.0.0.1',
+      port: proxyPort,
+      path: '/api/session.list',
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
+    assert.equal(res.statusCode, 200)
+    // 剥离后 body 为明文 JSON（content-encoding 已清除），且大投影字段被移除
+    assert.equal(res.headers['content-encoding'], undefined, '剥离后应清除 gzip 标记')
+    const j = JSON.parse(res.body)
+    assert.equal(j.result.value.items[0].projections.values.contextHeaders, undefined, 'contextHeaders 应被剥离')
+    assert.equal(j.result.value.items[0].projections.values.title, 'keep-title', '不应误删其他字段')
+  } finally {
+    await proxy.stop()
+    authManager.dispose()
+    await new Promise((resolve) => backend.close(resolve))
+  }
+})

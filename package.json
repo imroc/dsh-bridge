@@ -1,8 +1,8 @@
 {
   "name": "@wenbin_wb/dsh-bridge",
-  "version": "2.10.3",
+  "version": "2.10.4",
   "description": "手机扫码即可在移动端/公网继续用 DeepSeek Harness，人不在电脑前也能接着干。一键局域网二维码、Cloudflare 公网隧道、自建隧道与微信 / QQ / 飞书 / Telegram Bot（多工作区/会话持久化/媒体/卡片审批/流式输出），无需自己搭公网服务器。",
-  "releaseNotes": "【v2.10.3】\n• 兼容 DSH 原生端口 3080 直连（issue #28）：本机直连不再被误判为远程而锁定，走代理与直连行为一致\n• 安全：AI [SEND_FILE] 仅允许发送工作目录内文件，拦截 .ssh/.credentials/.env 等敏感路径\n• 修复：代理响应头透传、QQ 流式重复发送、微信轮询竞态（iLink 403）、飞书群聊审批按钮误拦\n• 会话列表/历史大字段剥离覆盖局域网与 Cloudflare 等全部公网入口",
+  "releaseNotes": "【v2.10.4】\n• 修复：全新安装（未设置任何密码）时远程访问被误锁，需输入『管理密码』（任意输入皆可通过）才可进入——现无密码时远程免锁直进，并明确提示先设置访问密码\n• 修复：Telegram 代理在 Node ≥ 24 下不生效（createConnection 构造参数被忽略，改为构造后赋值）\n• 修复：移动端点击 workspace 分组名误关抽屉、自建隧道 gzip 会话剥离失效、目录弹窗深色模式适配\n• 新功能：自建隧道 SSE 流式传输 + WebSocket Ping/Pong 保活；远程/移动端禁用下拉刷新防误触",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

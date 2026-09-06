@@ -4,6 +4,24 @@
 
 ---
 
+## [v2.10.4] - 2026-09-05
+
+### 🐞 修复
+
+- **全新安装未设密码时远程访问不再被假锁屏挡住**：此前远程打开设置面板会强制要求输入"管理密码"，而系统尚无任何密码可校验（任意输入都放行）；现仅当已配置密码或策略为「仅限本机管理」时才上锁，无密码时直接进入面板并引导先设置访问密码（issue 反馈）。
+- **修复 Telegram 代理在 Node ≥ 24 下不生效**（issue #32）：自定义 `createConnection` 作为 `https.Agent` 构造参数会被 Node ≥24 静默忽略（回退到直连），导致需代理才能访问 api.telegram.org 的网络环境下网关永远连不上且无任何报错。改为构造后赋值实例属性，CONNECT 隧道在 Node 22/24 均生效。
+- **修复移动端抽屉误关**（issue #31）：点击 workspace 分组名（projectRow 同样带 `role="treeitem"`）会误触发会话行收起逻辑，抽屉在 ~100ms 后自动关闭。closest 选择器移除 `div[role="treeitem"]`，会话行收起、分组展开/收起的交互恢复正常（长按检测同步修复）。
+- **自建隧道会话剥离支持 gzip 响应**（PR #29）：DSH web 默认 gzip 压缩，此前 `session.list`/`session.history` 的 gzip 响应直接 `JSON.parse` 失败导致大字段剥离失效、完整巨响应原样传输；现先 gunzip 再剥离。
+- **目录选择弹窗深色模式适配**（PR #29）：`--dsw-alias-brand-primary` 在深色模式下为白色导致按钮/提示背景错乱，改用静态蓝并补齐深色变量覆盖。
+- **WebSocket Ping/Pong keepalive**（PR #29）：自建隧道裸 TCP 转发不再透传 Ping 帧，DSH 每 2s 发 Ping 收不到 Pong 会 terminate；现于帧层自动回 Pong 保持长连接。
+
+### ✨ 新功能
+
+- **自建隧道 SSE 流式传输**（PR #29）：隧道协议新增 `response-start/chunk/end` 流式分片，SSE 事件流不再因"永不 end"而超时截断；安装脚本同步支持。
+- **远程/移动端禁用下拉刷新**（issue #30）：注入 `overscroll-behavior-y: none`，避免移动浏览器下拉误触导致整页重载丢失会话与输入。
+
+---
+
 ## [v2.10.3] - 2026-09-03
 
 ### ✨ 新功能
