@@ -416,6 +416,128 @@ const CustomTunnelGuide = React.memo(function CustomTunnelGuide() {
   );
 });
 
+// ── 公网入口总览卡：把"当前生效的访问地址"提到页面主角位置 ──────────────
+const TunnelEntryCard = React.memo(function TunnelEntryCard({
+  entry, onCopy, copied, autoStart, onToggleAutoStart, onStart, onStop, onReset,
+}) {
+  const [showQr, setShowQr] = React.useState(false);
+  const hasUrl = Boolean(entry && entry.url);
+  const active = Boolean(entry && entry.running);
+
+  return React.createElement('div', {
+    style: {
+      ...s.card,
+      borderColor: active ? 'var(--dsw-alias-state-success-border,#a7f3d0)' : undefined,
+      background: active ? 'linear-gradient(180deg, var(--dsw-alias-bg-layer-2,#f9fafb), var(--dsw-alias-bg-layer-1,#ffffff))' : undefined,
+    },
+  },
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 } },
+      React.createElement('div', { style: { flex: '1 1 auto', minWidth: 0 } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          React.createElement('span', { style: { fontSize: 16 } }, '🌐'),
+          React.createElement('div', { style: s.label }, '公网访问入口'),
+        ),
+        React.createElement('div', { style: { ...s.muted, marginTop: 4 } },
+          entry ? (entry.title + ' · ' + entry.desc) : '尚未配置任何公网隧道，可在下方开启 Cloudflare 隧道或配置自建隧道'
+        ),
+      ),
+      React.createElement(StatusTag, {
+        running: active,
+        status: (entry && entry.phase && entry.phase !== 'ready') ? entry.phase : undefined,
+      }),
+    ),
+
+    React.createElement('div', { style: { ...s.block, display: 'flex', flexDirection: 'column', gap: 10 } },
+      // 有地址：大号 URL + 复制 + 二维码 + 重置
+      hasUrl && React.createElement(React.Fragment, null,
+        React.createElement('div', {
+          style: {
+            padding: '10px 12px',
+            background: 'var(--dsw-alias-bg-layer-1,#ffffff)',
+            border: '1px solid var(--dsw-alias-border-l2,#e5e7eb)',
+            borderRadius: 10,
+            display: 'flex', alignItems: 'center', gap: 10,
+          },
+        },
+          React.createElement('code', {
+            style: { ...s.code, flex: '1 1 auto', fontSize: 13.5, wordBreak: 'break-all', lineHeight: 1.5 },
+          }, entry.url),
+          React.createElement('button', {
+            style: { ...s.btnGhost, flexShrink: 0, height: 28, padding: '0 12px', fontSize: 12 },
+            onClick: () => onCopy(entry.url),
+          }, copied ? '✓ 已复制' : '复制'),
+        ),
+        React.createElement('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          entry.qr && React.createElement('button', {
+            style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
+            onClick: () => setShowQr((v) => !v),
+          }, showQr ? '隐藏二维码' : '显示二维码'),
+          onReset && React.createElement('button', {
+            style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
+            onClick: onReset,
+            title: '关闭并重新开启，更换临时地址',
+          }, '🔄 重置链接'),
+        ),
+        showQr && entry.qr && React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 } },
+          React.createElement('img', { src: entry.qr, alt: 'QR', style: { ...s.qr, margin: 0 } }),
+          React.createElement('div', { style: { ...s.muted, fontSize: 11 } }, '请在私密环境下扫码使用'),
+        ),
+      ),
+      // 无地址：引导开启
+      !hasUrl && onStart && React.createElement('button', {
+        style: { ...s.btnPri, alignSelf: 'flex-start', opacity: (entry && entry.configured === false) ? 0.4 : 1 },
+        onClick: onStart,
+        disabled: Boolean(entry && entry.configured === false),
+        title: (entry && entry.configured === false) ? '请先在「隧道配置」中保存服务器配置' : '',
+      }, '开启公网隧道'),
+      // 状态细节（重连/错误/连接中）
+      entry && entry.stateDetail && React.createElement('div', {
+        style: {
+          fontSize: 12, lineHeight: 1.5,
+          color: entry.phase === 'error' ? 'var(--dsw-alias-state-error-primary,#dc2626)'
+            : entry.phase === 'reconnecting' ? 'var(--dsw-alias-state-warn-primary,#d97706)'
+            : 'var(--dsw-alias-label-secondary,#6b7280)',
+        },
+      }, entry.stateDetail),
+    ),
+
+    onToggleAutoStart && React.createElement('label', {
+      style: {
+        display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, paddingTop: 10,
+        borderTop: '1px solid var(--dsw-alias-border-l2,#e5e7eb)',
+        fontSize: 12, color: 'var(--dsw-alias-label-secondary,#6b7280)', cursor: 'pointer', userSelect: 'none',
+      },
+      title: 'DSH 启动时自动恢复该隧道的运行状态',
+    },
+      React.createElement('input', {
+        type: 'checkbox',
+        checked: Boolean(autoStart),
+        onChange: (e) => onToggleAutoStart(e.target.checked),
+      }),
+      React.createElement('span', null, '随 DSH 启动自动开启'),
+    ),
+  );
+});
+
+// 隧道配置折叠分组：把 CF / 自建 / 外部 三套"不常用"配置收进一处
+const TunnelConfigGroup = React.memo(function TunnelConfigGroup({ children }) {
+  const [open, setOpen] = React.useState(false);
+  return React.createElement('div', { style: s.card },
+    React.createElement('div', {
+      style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none', gap: 8 },
+      onClick: () => setOpen((v) => !v),
+    },
+      React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+        React.createElement('span', { style: { fontSize: 14 } }, '⚙️'),
+        React.createElement('div', { style: s.label }, '隧道配置'),
+        React.createElement('span', { style: { ...s.muted, fontSize: 11 } }, 'Token · 固定域名 · 自建服务器 · 外部登记'),
+      ),
+      React.createElement('span', { style: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary,#9ca3af)', flexShrink: 0 } }, open ? '收起 ▴' : '展开 ▾'),
+    ),
+    open && React.createElement('div', { style: { marginTop: 4 } }, children),
+  );
+});
+
 const CustomTunnelConfigForm = React.memo(function CustomTunnelConfigForm({ serverUrl: initUrl, accessToken: initToken, onSave }) {
   const [serverUrl, setServerUrl]     = React.useState(initUrl ?? '');
   const [accessToken, setAccessToken] = React.useState(initToken ?? '');
@@ -2600,6 +2722,20 @@ function BridgePanel({ rpcCall }) {
   const [platforms, setPlatforms] = React.useState(null);
   const [selectedPlatform, setSelectedPlatform] = React.useState('wechat');
 
+  // 隧道页"主入口"地址复制反馈
+  const [copiedUrl, setCopiedUrl] = React.useState('');
+  const copyEntryUrl = React.useCallback((url) => {
+    const done = () => {
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(''), 2000);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(() => done());
+    } else {
+      done();
+    }
+  }, []);
+
   // 远程设备管理权限解锁状态
   const isLocalhost = typeof window === 'undefined' || (
     !window.location.hostname ||
@@ -2856,58 +2992,103 @@ function BridgePanel({ rpcCall }) {
     );
   } else if (activeTab === 'tunnel') {
     const ext = status?.externalTunnel;
+    const cf = status?.cloudflared;
+
+    // 计算"当前主入口"：优先自建隧道（固定地址）> Cloudflare > 外部登记。
+    // running（含重连中）即入列——重连时 url 可能暂时为空，但应让用户看到状态。
+    const cfDesc = cf?.tokenConfigured ? '固定域名模式' : '免登录临时域名';
+    const entries = [
+      ct && ct.running && {
+        key: 'custom', title: '自建隧道', desc: 'VPS 自建 · 固定地址',
+        url: ct.url || null, qr: ct.qr, running: true,
+        phase: ct.state && ct.state.phase, stateDetail: ct.state && ct.state.detail,
+        autoStart: ct.autoStart, onToggleAutoStart: onToggleCustomAutoStart,
+        onStart: onStartCustom, onStop: onStopCustom,
+      },
+      cf && cf.running && {
+        key: 'cloudflared', title: 'Cloudflare 隧道', desc: cfDesc,
+        url: cf.url || null, qr: cf.qr, running: true,
+        phase: cf.state && cf.state.phase, stateDetail: cf.state && cf.state.detail,
+        autoStart: cf.autoStart, onToggleAutoStart: onToggleCloudflaredAutoStart,
+        onStart: onStartCloudflared, onStop: onStopCloudflared,
+        onReset: onResetCloudflared,
+      },
+      ext && ext.configured && ext.url && {
+        key: 'external', title: '外部已部署隧道', desc: '自行部署登记',
+        url: ext.url, qr: ext.qr, running: true,
+      },
+    ].filter(Boolean);
+    const primary = entries[0] || null;
+    const otherCount = primary ? entries.length - 1 : entries.length;
+
     tabContent = React.createElement(React.Fragment, null,
-      React.createElement(TunnelCard, {
-        title: 'Cloudflare 隧道',
-        desc: status?.cloudflared?.tokenConfigured
-          ? '固定域名模式（Token 运行 · 重启 URL 保持不变）'
-          : '一键获取公网地址（免登录临时随机域名）',
-        data: {
-          running: status?.cloudflared?.running,
-          url: status?.cloudflared?.url,
-          qr: status?.cloudflared?.qr,
-          state: status?.cloudflared?.state,
-        },
-        autoStart: status?.cloudflared?.autoStart,
-        onToggleAutoStart: onToggleCloudflaredAutoStart,
-        auth: status?.auth,
-        onNavigateSecurity: navSecurity,
-        onStart: onStartCloudflared,
-        onStop:  onStopCloudflared,
-        onReset: status?.cloudflared?.running ? onResetCloudflared : null,
-      },
-        React.createElement(CloudflareConfigForm, {
-          token: status?.cloudflared?.token ?? '',
-          hostname: status?.cloudflared?.hostname ?? '',
-          onSave: saveCloudflaredConfig,
-        }),
-      ),
-      React.createElement(ExternalTunnelCard, {
-        ext,
-        onSave: saveExternalTunnel,
+      React.createElement(TunnelEntryCard, {
+        entry: primary,
+        onCopy: copyEntryUrl,
+        copied: Boolean(copiedUrl && primary && copiedUrl === primary.url),
+        autoStart: primary ? primary.autoStart : undefined,
+        onToggleAutoStart: primary ? primary.onToggleAutoStart : undefined,
+        onStart: primary ? primary.onStart : (cf ? onStartCloudflared : null),
+        onStop: primary ? primary.onStop : undefined,
+        onReset: primary ? primary.onReset : undefined,
       }),
-      React.createElement(TunnelCard, {
-        title: '自建隧道',
-        desc: '连接自己部署的隧道服务器，获得固定域名',
-        data: {
-          configured: ct?.configured,
-          running: ct?.running,
-          url: ct?.url,
-          qr: ct?.qr,
-          state: ct?.state,
+      otherCount > 0 && React.createElement('div', {
+        style: { ...s.muted, fontSize: 11, marginBottom: 8, textAlign: 'center' },
+      }, '另有 ' + otherCount + ' 个隧道入口在运行，可在下方「隧道配置」中查看与管理'),
+
+      React.createElement(TunnelConfigGroup, null,
+        React.createElement(TunnelCard, {
+          title: 'Cloudflare 隧道',
+          desc: cf && cf.tokenConfigured
+            ? '固定域名模式（Token 运行 · 重启 URL 保持不变）'
+            : '一键获取公网地址（免登录临时随机域名）',
+          data: {
+            running: cf && cf.running,
+            url: cf && cf.url,
+            qr: cf && cf.qr,
+            state: cf && cf.state,
+          },
+          autoStart: cf && cf.autoStart,
+          onToggleAutoStart: onToggleCloudflaredAutoStart,
+          auth: status && status.auth,
+          onNavigateSecurity: navSecurity,
+          onStart: onStartCloudflared,
+          onStop:  onStopCloudflared,
+          onReset: (cf && cf.running) ? onResetCloudflared : null,
         },
-        autoStart: ct?.autoStart,
-        onToggleAutoStart: onToggleCustomAutoStart,
-        auth: status?.auth,
-        onNavigateSecurity: navSecurity,
-        onStart: onStartCustom,
-        onStop:  onStopCustom,
-      },
-        React.createElement(CustomTunnelGuide),
-        React.createElement(CustomTunnelConfigForm, {
-          serverUrl: ct?.serverUrl ?? '',
-          accessToken: ct?.accessToken ?? '',
-          onSave: saveConfig,
+          React.createElement(CloudflareConfigForm, {
+            token: (cf && cf.token) || '',
+            hostname: (cf && cf.hostname) || '',
+            onSave: saveCloudflaredConfig,
+          }),
+        ),
+        React.createElement(TunnelCard, {
+          title: '自建隧道',
+          desc: '连接自己部署的隧道服务器，获得固定域名',
+          data: {
+            configured: ct && ct.configured,
+            running: ct && ct.running,
+            url: ct && ct.url,
+            qr: ct && ct.qr,
+            state: ct && ct.state,
+          },
+          autoStart: ct && ct.autoStart,
+          onToggleAutoStart: onToggleCustomAutoStart,
+          auth: status && status.auth,
+          onNavigateSecurity: navSecurity,
+          onStart: onStartCustom,
+          onStop:  onStopCustom,
+        },
+          React.createElement(CustomTunnelGuide),
+          React.createElement(CustomTunnelConfigForm, {
+            serverUrl: (ct && ct.serverUrl) || '',
+            accessToken: (ct && ct.accessToken) || '',
+            onSave: saveConfig,
+          }),
+        ),
+        React.createElement(ExternalTunnelCard, {
+          ext,
+          onSave: saveExternalTunnel,
         }),
       ),
     );
@@ -2996,6 +3177,14 @@ function BridgePanel({ rpcCall }) {
   const policy = auth?.adminPolicy ?? 'password_unlock';
   // 系统是否已配置任何密码（访客访问密码 或 独立管理密码）。
   const hasAnyPassword = !!(auth?.hasPassword || auth?.hasAdminPassword);
+  // 解锁密码类型：有独立管理密码 → 用管理密码；否则（只有访问密码/都没有）
+  // 服务端以 adminPasswordHash || passwordHash 兜底，实际校验的是访问密码。
+  // UI 需如实告诉用户该输哪个密码，避免"哪来的管理密码"的困惑。
+  const unlockUsesAdmin = !!auth?.hasAdminPassword;
+  const unlockPwdKind = unlockUsesAdmin ? '管理密码' : '访问密码';
+  const unlockPwdHint = unlockUsesAdmin
+    ? '请输入后台管理密码解锁管理权限。'
+    : '当前未设置独立管理密码，输入您的访问密码即可解锁。';
   // 锁屏条件：远程 + 管理保护开启（adminProtection）+ 未解锁 + 非宽松策略。
   // 不依赖 auth.enabled：即使访问认证关闭，管理保护仍独立生效，上锁后必须显示锁屏。
   // local_only 也锁定（显示"仅限本机管理"专属锁屏）。
@@ -3045,8 +3234,32 @@ function BridgePanel({ rpcCall }) {
           React.createElement('div', { style: { textAlign: 'center', marginBottom: 20 } },
             React.createElement('div', { style: { fontSize: 40, marginBottom: 10 } }, '🔒'),
             React.createElement('div', { style: { ...s.label, fontSize: 16, fontWeight: 600 } }, '管理控制台已锁定'),
-            React.createElement('div', { style: { ...s.muted, fontSize: 12, marginTop: 6, lineHeight: 1.5 } },
-              '当前设备为远程访问。为保护您的网络与平台配置安全，请输入管理员密码解锁管理权限。'
+            // 醒目提示该输入哪种密码
+            React.createElement('div', { style: { marginTop: 10, display: 'flex', justifyContent: 'center' } },
+              unlockUsesAdmin ? (
+                React.createElement('span', {
+                  style: {
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                    background: 'var(--dsw-alias-state-info-bg,#eff6ff)',
+                    color: 'var(--dsw-alias-state-info-primary,#2563eb)',
+                    border: '1px solid var(--dsw-alias-state-info-border,#bfdbfe)',
+                  },
+                }, '🔑 使用管理密码解锁')
+              ) : (
+                React.createElement('span', {
+                  style: {
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600,
+                    background: 'var(--dsw-alias-state-success-bg,#ecfdf5)',
+                    color: 'var(--dsw-alias-state-success-primary,#059669)',
+                    border: '1px solid var(--dsw-alias-state-success-border,#a7f3d0)',
+                  },
+                }, '🔐 使用访问密码解锁')
+              ),
+            ),
+            React.createElement('div', { style: { ...s.muted, fontSize: 12, marginTop: 10, lineHeight: 1.6 } },
+              '当前设备为远程访问。为保护您的网络与平台配置安全，' + unlockPwdHint
             ),
           ),
           React.createElement('form', {
@@ -3056,7 +3269,7 @@ function BridgePanel({ rpcCall }) {
             React.createElement('input', {
               type: 'password',
               style: s.input,
-              placeholder: '输入后台管理密码',
+              placeholder: '输入' + unlockPwdKind,
               value: unlockPassword,
               onChange: (e) => setUnlockPassword(e.target.value),
               autoFocus: true,
@@ -3075,7 +3288,7 @@ function BridgePanel({ rpcCall }) {
               type: 'button',
               style: { ...s.btnLink, fontSize: 12, color: 'var(--dsw-alias-label-secondary,#6b7280)' },
               onClick: () => setShowForgotGuide(v => !v),
-            }, '❓ 忘记后台管理密码？'),
+            }, '❓ 忘记' + unlockPwdKind + '？'),
           ),
           showForgotGuide && React.createElement('div', {
             style: {
@@ -3084,8 +3297,8 @@ function BridgePanel({ rpcCall }) {
               color: 'var(--dsw-alias-label-secondary,#4b5563)', textAlign: 'left',
             },
           },
-            React.createElement('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-label-primary,currentColor)', marginBottom: 4 } }, '🛟 找回与重置密码指引：'),
-            React.createElement('div', null, '1. ', React.createElement('strong', null, '电脑本机直连修改'), '：直接在运行本程序的电脑本机打开本控制台（127.0.0.1 享有物理免锁特权），可随时修改管理密码。'),
+            React.createElement('div', { style: { fontWeight: 600, color: 'var(--dsw-alias-label-primary,currentColor)', marginBottom: 4 } }, '🛟 找回与重置' + unlockPwdKind + '指引：'),
+            React.createElement('div', null, '1. ', React.createElement('strong', null, '电脑本机直连修改'), '：直接在运行本程序的电脑本机打开本控制台（127.0.0.1 享有物理免锁特权），可随时修改或清除密码。'),
             React.createElement('div', { style: { marginTop: 4 } }, '2. ', React.createElement('strong', null, '服务器 / 无头环境'), '：救急重置步骤参见 GitHub README 的「三重容灾保命体系」章节。'),
           ),
         )
@@ -3119,7 +3332,7 @@ function BridgePanel({ rpcCall }) {
           setUnlockErr(err);
           setShowUnlockModal(true);
         },
-      }, '🔑 立即输入管理密码解锁'),
+      }, '🔑 立即输入' + unlockPwdKind + '解锁'),
     ),
 
     // 管理员解锁状态提示条
@@ -3195,7 +3408,9 @@ function BridgePanel({ rpcCall }) {
           }, '✕'),
         ),
         React.createElement('div', { style: { fontSize: 13, color: 'var(--dsw-alias-label-secondary,#4b5563)', marginBottom: 16, lineHeight: 1.5 } },
-          '当前操作需要后台管理员权限。为保护您的网络配置与机器人平台安全，请输入管理密码解锁：'
+          unlockUsesAdmin
+            ? '当前操作需要后台管理员权限。为保护您的网络配置与机器人平台安全，请输入管理密码解锁：'
+            : '当前操作需要后台管理权限。未设置独立管理密码，输入您的访问密码即可解锁：'
         ),
         React.createElement('form', {
           onSubmit: handleUnlockAdmin,
@@ -3204,7 +3419,7 @@ function BridgePanel({ rpcCall }) {
           React.createElement('input', {
             type: 'password',
             style: s.input,
-            placeholder: '请输入后台管理密码',
+            placeholder: '输入' + unlockPwdKind,
             value: unlockPassword,
             onChange: (e) => setUnlockPassword(e.target.value),
             autoFocus: true,
