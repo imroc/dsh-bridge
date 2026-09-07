@@ -9,9 +9,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { CloudflaredManager, parseCloudflaredVersion } from '../lib/cloudflared-manager.mjs';
 
-const FAKE_BIN = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-cloudflared.mjs');
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const FAKE_SCRIPT = join(FIXTURES, 'fake-cloudflared.mjs');
+
+// 跨平台"可执行入口"：
+// - Linux/macOS：直接 spawn node 脚本（需可执行位，git 已存 mode 755）
+// - Windows：child_process 无法直接 spawn 无 shebang 支持的 .mjs，生成 .cmd 包装
+//   （@node "%~dp0fake-cloudflared.mjs" %*），配合 shell:true 注入让进程测试同样跑通。
+const IS_WIN = process.platform === 'win32';
+const FAKE_BIN = IS_WIN ? join(FIXTURES, 'fake-cloudflared.cmd') : FAKE_SCRIPT;
+if (IS_WIN) {
+  writeFileSync(FAKE_BIN, '@echo off\r\nnode "%~dp0fake-cloudflared.mjs" %*\r\n');
+}
+// Windows 下 spawn .cmd 需 shell:true；manager 通过 spawnOptions 注入（生产不传）。
+const FAKE_SPAWN_OPTS = IS_WIN ? { shell: true } : null;
+
 const noopLogger = { info: () => {}, error: () => {}, warn: () => {}, debug: () => {} };
 
 // 状态历史记录器
@@ -59,6 +74,7 @@ test('就绪后意外退出（如崩溃/误杀）→ 退避自动重启并恢复
     token: 'fake-token',
     hostname: 'dsh.example.com',
     binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
     retryPolicy: { baseDelayMs: 50, maxDelayMs: 200, maxRetries: 5 }, // 测试用小退避
     handshakeTimeoutMs: 2000,
     onStateChange: rec.onState,
@@ -94,6 +110,7 @@ test('用户 stop() 后意外退出不再自愈', async () => {
     port: 3082,
     token: 'fake-token',
     binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
     retryPolicy: { baseDelayMs: 50, maxDelayMs: 200, maxRetries: 5 },
     handshakeTimeoutMs: 2000,
     onStateChange: rec.onState,
@@ -130,6 +147,7 @@ test('启动秒退（如 token 错误）→ 退避重试直至成功或超限', 
     port: 3082,
     token: 'bad-token',
     binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
     retryPolicy: { baseDelayMs: 30, maxDelayMs: 120, maxRetries: 4 },
     handshakeTimeoutMs: 2000,
     onStateChange: rec.onState,
@@ -161,6 +179,7 @@ test('握手超时只杀进程不置 _stopped：之后可成功重试', async ()
     port: 3082,
     token: 'fake-token',
     binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
     retryPolicy: { baseDelayMs: 50, maxDelayMs: 200, maxRetries: 5 },
     handshakeTimeoutMs: 150, // 注入极小超时
     onStateChange: rec.onState,
@@ -188,6 +207,7 @@ test('manager 意外退出与 stop 生命周期：stop 后 exit 事件不清新�
     port: 3082,
     token: 'fake-token',
     binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
     retryPolicy: { baseDelayMs: 50, maxDelayMs: 200, maxRetries: 5 },
     handshakeTimeoutMs: 2000,
     onStateChange: rec.onState,
