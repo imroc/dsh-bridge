@@ -213,14 +213,14 @@ function StatusTag({ running, status }) {
     bg = 'var(--dsw-alias-state-success-bg,#ecfdf5)';
     color = 'var(--dsw-alias-state-success-primary,#059669)';
     text = '已连接';
-  } else if (status === 'starting') {
+  } else if (status === 'starting' || status === 'connecting' || status === 'downloading') {
     bg = 'var(--dsw-alias-state-info-bg,#eff6ff)';
     color = 'var(--dsw-alias-state-info-primary,#3b82f6)';
-    text = '连接中…';
+    text = status === 'downloading' ? '下载中…' : '连接中…';
   } else if (status === 'reconnecting') {
     bg = 'var(--dsw-alias-state-warn-bg,#fffbeb)';
     color = 'var(--dsw-alias-state-warn-primary,#d97706)';
-    text = '重连中…';
+    text = '自动重连中…';
   } else if (status === 'paused') {
     bg = 'var(--dsw-alias-state-warn-bg,#fffbeb)';
     color = 'var(--dsw-alias-state-warn-primary,#d97706)';
@@ -511,7 +511,7 @@ const TunnelCard = React.memo(function TunnelCard({
         React.createElement('div', { style: { ...s.muted, marginTop: 2 } }, desc),
       ),
       React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 } },
-        React.createElement(StatusTag, { running }),
+        React.createElement(StatusTag, { running, status: phase === 'ready' ? undefined : phase }),
         onToggleAutoStart && React.createElement('label', {
           style: {
             display: 'flex',
@@ -537,7 +537,9 @@ const TunnelCard = React.memo(function TunnelCard({
     phase !== 'idle' && phase !== 'ready' && React.createElement('div', {
       style: {
         ...s.block, fontSize: 12,
-        color: phase === 'error' ? 'var(--dsw-alias-state-error-primary,#dc2626)' : 'var(--dsw-alias-label-secondary,#6b7280)',
+        color: phase === 'error' ? 'var(--dsw-alias-state-error-primary,#dc2626)'
+          : phase === 'reconnecting' ? 'var(--dsw-alias-state-warn-primary,#d97706)'
+          : 'var(--dsw-alias-label-secondary,#6b7280)',
       },
     }, state?.detail ?? phase),
     url && React.createElement(QrBlock, { url, qr, onReset, auth, onNavigateSecurity }),
@@ -550,7 +552,10 @@ const TunnelCard = React.memo(function TunnelCard({
         disabled: configured === false || phase === 'connecting' || phase === 'downloading',
         title: configured === false ? '请先保存服务器配置' : '',
       }, phase === 'connecting' ? '连接中…' : phase === 'downloading' ? '下载中…' : '开启'),
-      running && onStop && React.createElement('button', { style: s.btnGhost, onClick: onStop }, '关闭'),
+      running && onStop && React.createElement('button', {
+        style: s.btnGhost,
+        onClick: onStop,
+      }, phase === 'reconnecting' ? '停止重连' : '关闭'),
     ),
   );
 });

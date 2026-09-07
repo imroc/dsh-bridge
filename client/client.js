@@ -1222,14 +1222,14 @@ function StatusTag({ running, status }) {
     bg = "var(--dsw-alias-state-success-bg,#ecfdf5)";
     color = "var(--dsw-alias-state-success-primary,#059669)";
     text = "\u5DF2\u8FDE\u63A5";
-  } else if (status === "starting") {
+  } else if (status === "starting" || status === "connecting" || status === "downloading") {
     bg = "var(--dsw-alias-state-info-bg,#eff6ff)";
     color = "var(--dsw-alias-state-info-primary,#3b82f6)";
-    text = "\u8FDE\u63A5\u4E2D\u2026";
+    text = status === "downloading" ? "\u4E0B\u8F7D\u4E2D\u2026" : "\u8FDE\u63A5\u4E2D\u2026";
   } else if (status === "reconnecting") {
     bg = "var(--dsw-alias-state-warn-bg,#fffbeb)";
     color = "var(--dsw-alias-state-warn-primary,#d97706)";
-    text = "\u91CD\u8FDE\u4E2D\u2026";
+    text = "\u81EA\u52A8\u91CD\u8FDE\u4E2D\u2026";
   } else if (status === "paused") {
     bg = "var(--dsw-alias-state-warn-bg,#fffbeb)";
     color = "var(--dsw-alias-state-warn-primary,#d97706)";
@@ -1561,7 +1561,7 @@ var TunnelCard = React.memo(function TunnelCard2({
       React.createElement(
         "div",
         { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 } },
-        React.createElement(StatusTag, { running }),
+        React.createElement(StatusTag, { running, status: phase === "ready" ? void 0 : phase }),
         onToggleAutoStart && React.createElement(
           "label",
           {
@@ -1590,7 +1590,7 @@ var TunnelCard = React.memo(function TunnelCard2({
       style: {
         ...s.block,
         fontSize: 12,
-        color: phase === "error" ? "var(--dsw-alias-state-error-primary,#dc2626)" : "var(--dsw-alias-label-secondary,#6b7280)"
+        color: phase === "error" ? "var(--dsw-alias-state-error-primary,#dc2626)" : phase === "reconnecting" ? "var(--dsw-alias-state-warn-primary,#d97706)" : "var(--dsw-alias-label-secondary,#6b7280)"
       }
     }, state?.detail ?? phase),
     url && React.createElement(QrBlock, { url, qr, onReset, auth, onNavigateSecurity }),
@@ -1605,7 +1605,10 @@ var TunnelCard = React.memo(function TunnelCard2({
         disabled: configured === false || phase === "connecting" || phase === "downloading",
         title: configured === false ? "\u8BF7\u5148\u4FDD\u5B58\u670D\u52A1\u5668\u914D\u7F6E" : ""
       }, phase === "connecting" ? "\u8FDE\u63A5\u4E2D\u2026" : phase === "downloading" ? "\u4E0B\u8F7D\u4E2D\u2026" : "\u5F00\u542F"),
-      running && onStop && React.createElement("button", { style: s.btnGhost, onClick: onStop }, "\u5173\u95ED")
+      running && onStop && React.createElement("button", {
+        style: s.btnGhost,
+        onClick: onStop
+      }, phase === "reconnecting" ? "\u505C\u6B62\u91CD\u8FDE" : "\u5173\u95ED")
     )
   );
 });
