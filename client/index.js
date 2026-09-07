@@ -448,49 +448,25 @@ const TunnelEntryCard = React.memo(function TunnelEntryCard({
     ),
 
     React.createElement('div', { style: { ...s.block, display: 'flex', flexDirection: 'column', gap: 10 } },
-      // 有地址：大号 URL + 复制 + 二维码 + 重置
-      hasUrl && React.createElement(React.Fragment, null,
-        React.createElement('div', {
-          style: {
-            padding: '10px 12px',
-            background: 'var(--dsw-alias-bg-layer-1,#ffffff)',
-            border: '1px solid var(--dsw-alias-border-l2,#e5e7eb)',
-            borderRadius: 10,
-            display: 'flex', alignItems: 'center', gap: 10,
-          },
+      // 有地址：大号 URL + 复制
+      hasUrl && React.createElement('div', {
+        style: {
+          padding: '10px 12px',
+          background: 'var(--dsw-alias-bg-layer-1,#ffffff)',
+          border: '1px solid var(--dsw-alias-border-l2,#e5e7eb)',
+          borderRadius: 10,
+          display: 'flex', alignItems: 'center', gap: 10,
         },
-          React.createElement('code', {
-            style: { ...s.code, flex: '1 1 auto', fontSize: 13.5, wordBreak: 'break-all', lineHeight: 1.5 },
-          }, entry.url),
-          React.createElement('button', {
-            style: { ...s.btnGhost, flexShrink: 0, height: 28, padding: '0 12px', fontSize: 12 },
-            onClick: () => onCopy(entry.url),
-          }, copied ? '✓ 已复制' : '复制'),
-        ),
-        React.createElement('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-          entry.qr && React.createElement('button', {
-            style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
-            onClick: () => setShowQr((v) => !v),
-          }, showQr ? '隐藏二维码' : '显示二维码'),
-          onReset && React.createElement('button', {
-            style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
-            onClick: onReset,
-            title: '关闭并重新开启，更换临时地址',
-          }, '🔄 重置链接'),
-        ),
-        showQr && entry.qr && React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 } },
-          React.createElement('img', { src: entry.qr, alt: 'QR', style: { ...s.qr, margin: 0 } }),
-          React.createElement('div', { style: { ...s.muted, fontSize: 11 } }, '请在私密环境下扫码使用'),
-        ),
+      },
+        React.createElement('code', {
+          style: { ...s.code, flex: '1 1 auto', fontSize: 13.5, wordBreak: 'break-all', lineHeight: 1.5 },
+        }, entry.url),
+        React.createElement('button', {
+          style: { ...s.btnGhost, flexShrink: 0, height: 28, padding: '0 12px', fontSize: 12 },
+          onClick: () => onCopy && onCopy(entry.url),
+        }, copied ? '✓ 已复制' : '复制'),
       ),
-      // 无地址：引导开启
-      !hasUrl && onStart && React.createElement('button', {
-        style: { ...s.btnPri, alignSelf: 'flex-start', opacity: (entry && entry.configured === false) ? 0.4 : 1 },
-        onClick: onStart,
-        disabled: Boolean(entry && entry.configured === false),
-        title: (entry && entry.configured === false) ? '请先在「隧道配置」中保存服务器配置' : '',
-      }, '开启公网隧道'),
-      // 状态细节（重连/错误/连接中）
+      // 状态细节（重连/错误/连接中）——无 URL 时格外重要，让用户知道隧道在自愈而非消失
       entry && entry.stateDetail && React.createElement('div', {
         style: {
           fontSize: 12, lineHeight: 1.5,
@@ -499,6 +475,48 @@ const TunnelEntryCard = React.memo(function TunnelEntryCard({
             : 'var(--dsw-alias-label-secondary,#6b7280)',
         },
       }, entry.stateDetail),
+      // 操作行：running → 关闭/停止重连（+ 重置）；!running → 开启
+      active && onStop && React.createElement('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+        React.createElement('button', {
+          style: s.btnGhost,
+          onClick: onStop,
+        }, entry && entry.phase === 'reconnecting' ? '停止重连' : '关闭'),
+        onReset && React.createElement('button', {
+          style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
+          onClick: onReset,
+          title: '关闭并重新开启，更换临时地址',
+        }, '🔄 重置链接'),
+      ),
+      // running 但无 onStop 的入口（如外部登记）：只给重置/二维码辅助，无开关
+      active && !onStop && onReset && React.createElement('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+        React.createElement('button', {
+          style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
+          onClick: onReset,
+          title: '关闭并重新开启，更换临时地址',
+        }, '🔄 重置链接'),
+      ),
+      // 未运行：引导开启（连接中/下载中禁用）
+      !active && onStart && React.createElement('button', {
+        style: {
+          ...s.btnPri, alignSelf: 'flex-start',
+          opacity: (entry && entry.configured === false) ? 0.4 : 1,
+          background: (entry && entry.phase === 'connecting') ? 'var(--dsw-alias-state-info-primary,#3b82f6)' : undefined,
+        },
+        onClick: onStart,
+        disabled: Boolean((entry && entry.configured === false) || (entry && (entry.phase === 'connecting' || entry.phase === 'downloading'))),
+        title: (entry && entry.configured === false) ? '请先在「隧道配置」中保存服务器配置' : '',
+      }, (entry && entry.phase === 'connecting') ? '连接中…' : (entry && entry.phase === 'downloading') ? '下载中…' : '开启公网隧道'),
+      // 二维码辅助按钮：有地址未运行时也可查看（外部登记等）
+      hasUrl && entry.qr && React.createElement('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+        React.createElement('button', {
+          style: { ...s.btnGhost, height: 28, padding: '0 12px', fontSize: 12 },
+          onClick: () => setShowQr((v) => !v),
+        }, showQr ? '隐藏二维码' : '显示二维码'),
+      ),
+      showQr && hasUrl && entry.qr && React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 } },
+        React.createElement('img', { src: entry.qr, alt: 'QR', style: { ...s.qr, margin: 0 } }),
+        React.createElement('div', { style: { ...s.muted, fontSize: 11 } }, '请在私密环境下扫码使用'),
+      ),
     ),
 
     onToggleAutoStart && React.createElement('label', {

@@ -1493,66 +1493,87 @@ var TunnelEntryCard = React.memo(function TunnelEntryCard2({
     React.createElement(
       "div",
       { style: { ...s.block, display: "flex", flexDirection: "column", gap: 10 } },
-      // 有地址：大号 URL + 复制 + 二维码 + 重置
+      // 有地址：大号 URL + 复制
       hasUrl && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement(
-          "div",
-          {
-            style: {
-              padding: "10px 12px",
-              background: "var(--dsw-alias-bg-layer-1,#ffffff)",
-              border: "1px solid var(--dsw-alias-border-l2,#e5e7eb)",
-              borderRadius: 10,
-              display: "flex",
-              alignItems: "center",
-              gap: 10
-            }
-          },
-          React.createElement("code", {
-            style: { ...s.code, flex: "1 1 auto", fontSize: 13.5, wordBreak: "break-all", lineHeight: 1.5 }
-          }, entry.url),
-          React.createElement("button", {
-            style: { ...s.btnGhost, flexShrink: 0, height: 28, padding: "0 12px", fontSize: 12 },
-            onClick: () => onCopy(entry.url)
-          }, copied ? "\u2713 \u5DF2\u590D\u5236" : "\u590D\u5236")
-        ),
-        React.createElement(
-          "div",
-          { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
-          entry.qr && React.createElement("button", {
-            style: { ...s.btnGhost, height: 28, padding: "0 12px", fontSize: 12 },
-            onClick: () => setShowQr((v) => !v)
-          }, showQr ? "\u9690\u85CF\u4E8C\u7EF4\u7801" : "\u663E\u793A\u4E8C\u7EF4\u7801"),
-          onReset && React.createElement("button", {
-            style: { ...s.btnGhost, height: 28, padding: "0 12px", fontSize: 12 },
-            onClick: onReset,
-            title: "\u5173\u95ED\u5E76\u91CD\u65B0\u5F00\u542F\uFF0C\u66F4\u6362\u4E34\u65F6\u5730\u5740"
-          }, "\u{1F504} \u91CD\u7F6E\u94FE\u63A5")
-        ),
-        showQr && entry.qr && React.createElement(
-          "div",
-          { style: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 } },
-          React.createElement("img", { src: entry.qr, alt: "QR", style: { ...s.qr, margin: 0 } }),
-          React.createElement("div", { style: { ...s.muted, fontSize: 11 } }, "\u8BF7\u5728\u79C1\u5BC6\u73AF\u5883\u4E0B\u626B\u7801\u4F7F\u7528")
-        )
+        "div",
+        {
+          style: {
+            padding: "10px 12px",
+            background: "var(--dsw-alias-bg-layer-1,#ffffff)",
+            border: "1px solid var(--dsw-alias-border-l2,#e5e7eb)",
+            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 10
+          }
+        },
+        React.createElement("code", {
+          style: { ...s.code, flex: "1 1 auto", fontSize: 13.5, wordBreak: "break-all", lineHeight: 1.5 }
+        }, entry.url),
+        React.createElement("button", {
+          style: { ...s.btnGhost, flexShrink: 0, height: 28, padding: "0 12px", fontSize: 12 },
+          onClick: () => onCopy && onCopy(entry.url)
+        }, copied ? "\u2713 \u5DF2\u590D\u5236" : "\u590D\u5236")
       ),
-      // 无地址：引导开启
-      !hasUrl && onStart && React.createElement("button", {
-        style: { ...s.btnPri, alignSelf: "flex-start", opacity: entry && entry.configured === false ? 0.4 : 1 },
-        onClick: onStart,
-        disabled: Boolean(entry && entry.configured === false),
-        title: entry && entry.configured === false ? "\u8BF7\u5148\u5728\u300C\u96A7\u9053\u914D\u7F6E\u300D\u4E2D\u4FDD\u5B58\u670D\u52A1\u5668\u914D\u7F6E" : ""
-      }, "\u5F00\u542F\u516C\u7F51\u96A7\u9053"),
-      // 状态细节（重连/错误/连接中）
+      // 状态细节（重连/错误/连接中）——无 URL 时格外重要，让用户知道隧道在自愈而非消失
       entry && entry.stateDetail && React.createElement("div", {
         style: {
           fontSize: 12,
           lineHeight: 1.5,
           color: entry.phase === "error" ? "var(--dsw-alias-state-error-primary,#dc2626)" : entry.phase === "reconnecting" ? "var(--dsw-alias-state-warn-primary,#d97706)" : "var(--dsw-alias-label-secondary,#6b7280)"
         }
-      }, entry.stateDetail)
+      }, entry.stateDetail),
+      // 操作行：running → 关闭/停止重连（+ 重置）；!running → 开启
+      active && onStop && React.createElement(
+        "div",
+        { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+        React.createElement("button", {
+          style: s.btnGhost,
+          onClick: onStop
+        }, entry && entry.phase === "reconnecting" ? "\u505C\u6B62\u91CD\u8FDE" : "\u5173\u95ED"),
+        onReset && React.createElement("button", {
+          style: { ...s.btnGhost, height: 28, padding: "0 12px", fontSize: 12 },
+          onClick: onReset,
+          title: "\u5173\u95ED\u5E76\u91CD\u65B0\u5F00\u542F\uFF0C\u66F4\u6362\u4E34\u65F6\u5730\u5740"
+        }, "\u{1F504} \u91CD\u7F6E\u94FE\u63A5")
+      ),
+      // running 但无 onStop 的入口（如外部登记）：只给重置/二维码辅助，无开关
+      active && !onStop && onReset && React.createElement(
+        "div",
+        { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+        React.createElement("button", {
+          style: { ...s.btnGhost, height: 28, padding: "0 12px", fontSize: 12 },
+          onClick: onReset,
+          title: "\u5173\u95ED\u5E76\u91CD\u65B0\u5F00\u542F\uFF0C\u66F4\u6362\u4E34\u65F6\u5730\u5740"
+        }, "\u{1F504} \u91CD\u7F6E\u94FE\u63A5")
+      ),
+      // 未运行：引导开启（连接中/下载中禁用）
+      !active && onStart && React.createElement("button", {
+        style: {
+          ...s.btnPri,
+          alignSelf: "flex-start",
+          opacity: entry && entry.configured === false ? 0.4 : 1,
+          background: entry && entry.phase === "connecting" ? "var(--dsw-alias-state-info-primary,#3b82f6)" : void 0
+        },
+        onClick: onStart,
+        disabled: Boolean(entry && entry.configured === false || entry && (entry.phase === "connecting" || entry.phase === "downloading")),
+        title: entry && entry.configured === false ? "\u8BF7\u5148\u5728\u300C\u96A7\u9053\u914D\u7F6E\u300D\u4E2D\u4FDD\u5B58\u670D\u52A1\u5668\u914D\u7F6E" : ""
+      }, entry && entry.phase === "connecting" ? "\u8FDE\u63A5\u4E2D\u2026" : entry && entry.phase === "downloading" ? "\u4E0B\u8F7D\u4E2D\u2026" : "\u5F00\u542F\u516C\u7F51\u96A7\u9053"),
+      // 二维码辅助按钮：有地址未运行时也可查看（外部登记等）
+      hasUrl && entry.qr && React.createElement(
+        "div",
+        { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+        React.createElement("button", {
+          style: { ...s.btnGhost, height: 28, padding: "0 12px", fontSize: 12 },
+          onClick: () => setShowQr((v) => !v)
+        }, showQr ? "\u9690\u85CF\u4E8C\u7EF4\u7801" : "\u663E\u793A\u4E8C\u7EF4\u7801")
+      ),
+      showQr && hasUrl && entry.qr && React.createElement(
+        "div",
+        { style: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 } },
+        React.createElement("img", { src: entry.qr, alt: "QR", style: { ...s.qr, margin: 0 } }),
+        React.createElement("div", { style: { ...s.muted, fontSize: 11 } }, "\u8BF7\u5728\u79C1\u5BC6\u73AF\u5883\u4E0B\u626B\u7801\u4F7F\u7528")
+      )
     ),
     onToggleAutoStart && React.createElement(
       "label",
