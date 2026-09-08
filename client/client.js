@@ -999,6 +999,7 @@ var BRIDGE_ENDPOINTS = {
   setLanIp: "setLanIp",
   checkVersion: "checkVersion",
   upgradePlugin: "upgradePlugin",
+  upgradeDsh: "upgradeDsh",
   restartDsh: "restartDsh",
   exportBackup: "exportBackup",
   importBackup: "importBackup",
@@ -3690,6 +3691,7 @@ function VersionBanner({ rpcCall }) {
   }, [check]);
   const hasUpdate = info?.latest && info?.current && !info.error && semverGt(info.latest, info.current);
   const isLatest = info?.latest && info?.current && !info.error && !semverGt(info.latest, info.current);
+  const dshHasUpdate = !!(info?.dshLatest && info?.dshVersion && !info.error && semverGt(info.dshLatest, info.dshVersion));
   const handleUpgrade = React.useCallback(async () => {
     if (!info?.latest || upgrading) return;
     setUpgrading(true);
@@ -3711,6 +3713,28 @@ function VersionBanner({ rpcCall }) {
       setUpgrading(false);
     }
   }, [info?.latest, upgrading, rpcCall]);
+  const [dshUpgrading, setDshUpgrading] = React.useState(false);
+  const [dshUpgradeResult, setDshUpgradeResult] = React.useState(null);
+  const handleUpgradeDsh = React.useCallback(async () => {
+    if (!info?.dshLatest || dshUpgrading) return;
+    setDshUpgrading(true);
+    setDshUpgradeResult(null);
+    setDismissRestart(false);
+    resetRestartStatus();
+    try {
+      const r = await rpcCall(BRIDGE_ENDPOINTS.upgradeDsh, { version: info.dshLatest });
+      if (r?.ok && r.value?.ok) {
+        setDshUpgradeResult({ ok: true, message: `DSH \u5DF2\u6210\u529F\u5347\u7EA7\u5230 v${info.dshLatest}\uFF01` });
+      } else {
+        const msg = r?.value?.error || r?.error?.message || "\u5347\u7EA7\u5931\u8D25";
+        setDshUpgradeResult({ ok: false, message: msg, manual: true });
+      }
+    } catch (e) {
+      setDshUpgradeResult({ ok: false, message: e.message || "\u5347\u7EA7\u8BF7\u6C42\u5931\u8D25", manual: true });
+    } finally {
+      setDshUpgrading(false);
+    }
+  }, [info?.dshLatest, dshUpgrading, rpcCall]);
   const links = React.createElement(
     "div",
     { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
@@ -3775,24 +3799,26 @@ function VersionBanner({ rpcCall }) {
           hasUpdate && React.createElement("span", { style: { fontWeight: 600, fontSize: 11 } }, `\u2794 v${info.latest}`),
           info?.error && React.createElement("span", { style: { color: "var(--dsw-alias-state-warn-primary,#d97706)", fontSize: 11 } }, "(\u7F51\u7EDC\u8D85\u65F6)")
         ),
-        // DSH 宿主版本标签
+        // DSH 宿主版本标签（有新版时黄色高亮）
         info?.dshVersion && React.createElement(
           "span",
           {
             style: {
               ...s.tag,
-              background: "var(--dsw-alias-bg-layer-2,#f3f4f6)",
-              color: "var(--dsw-alias-label-tertiary,#6b7280)",
+              background: dshHasUpdate ? "var(--dsw-alias-state-warn-bg,#fffbeb)" : "var(--dsw-alias-bg-layer-2,#f3f4f6)",
+              color: dshHasUpdate ? "var(--dsw-alias-state-warn-primary,#d97706)" : "var(--dsw-alias-label-tertiary,#6b7280)",
               padding: "3px 10px",
               fontSize: 12,
               fontWeight: 500,
               display: "inline-flex",
               alignItems: "center",
               gap: 5
-            }
+            },
+            title: dshHasUpdate ? `\u53D1\u73B0 DSH \u65B0\u7248\u672C v${info.dshLatest}` : void 0
           },
           React.createElement("span", { style: { opacity: 0.75, fontSize: 11, fontWeight: 400 } }, "DSH"),
-          `v${info.dshVersion}`
+          `v${info.dshVersion}`,
+          dshHasUpdate && React.createElement("span", { style: { fontWeight: 600, fontSize: 11 } }, `\u2794 v${info.dshLatest}`)
         ),
         // 刷新检查按钮
         React.createElement(
@@ -3979,6 +4005,109 @@ function VersionBanner({ rpcCall }) {
             upgradeCommands(info.latest).map(
               ({ id, cmd }) => React.createElement(UpgradeCommandRow, { key: id, cmd })
             )
+          )
+        )
+      )
+    ),
+    // ── DSH 宿主有新版本时的提示 / 一键升级卡片 ──
+    dshHasUpdate && React.createElement(
+      "div",
+      {
+        style: {
+          ...s.card,
+          background: "var(--dsw-alias-state-warn-bg,#fffbeb)",
+          border: "1px solid var(--dsw-alias-state-warn-border,#fde68a)",
+          padding: "14px 16px",
+          marginTop: 10,
+          marginBottom: 0
+        }
+      },
+      React.createElement(
+        "div",
+        { style: { display: "flex", alignItems: "flex-start", gap: 12 } },
+        React.createElement("span", { style: { fontSize: 22 } }, "\u{1F6E0}\uFE0F"),
+        React.createElement(
+          "div",
+          { style: { flex: 1, minWidth: 0 } },
+          React.createElement(
+            "div",
+            { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 } },
+            React.createElement("div", {
+              style: { fontSize: 13, fontWeight: 600, color: "var(--dsw-alias-state-warn-primary,#92400e)" }
+            }, `DSH \u6709\u65B0\u7248\u672C v${info.dshLatest}\uFF08\u5F53\u524D v${info.dshVersion}\uFF09`),
+            info?.dshUpgradable ? React.createElement(
+              "button",
+              {
+                style: {
+                  ...s.btnPri,
+                  height: 28,
+                  fontSize: 12,
+                  padding: "0 14px",
+                  background: dshUpgradeResult?.ok ? "var(--dsw-alias-state-success-primary,#059669)" : "var(--dsw-alias-brand-primary,#4f6ef7)",
+                  opacity: dshUpgrading || restarting ? 0.6 : 1
+                },
+                onClick: handleUpgradeDsh,
+                disabled: dshUpgrading || restarting || dshUpgradeResult?.ok
+              },
+              dshUpgrading ? React.createElement(
+                "span",
+                { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+                React.createElement("span", { style: { animation: "spin 1s linear infinite", display: "inline-flex" } }, React.createElement(Icons.refresh)),
+                "\u6B63\u5728\u5347\u7EA7 DSH\u2026"
+              ) : dshUpgradeResult?.ok ? "\u2713 DSH \u5347\u7EA7\u5B8C\u6210" : `\u4E00\u952E\u5347\u7EA7 DSH \u5230 v${info.dshLatest}`
+            ) : React.createElement("a", {
+              href: GITHUB_URL,
+              target: "_blank",
+              rel: "noreferrer",
+              style: { ...s.btnLink, fontSize: 12, fontWeight: 600 }
+            }, "\u67E5\u770B\u5B98\u65B9\u5347\u7EA7\u65B9\u5F0F \u2197")
+          ),
+          React.createElement(
+            "div",
+            {
+              style: { fontSize: 12, color: "var(--dsw-alias-label-secondary,#6b7280)", lineHeight: 1.6 }
+            },
+            info?.dshUpgradable ? "\u5347\u7EA7 DSH \u547D\u4EE4\u884C\u5DE5\u5177\u540E\u9700\u91CD\u542F DSH \u670D\u52A1\u751F\u6548\u3002" : info?.dshUpgradeReason || "\u5F53\u524D DSH \u975E npm \u5168\u5C40\u5B89\u88C5\uFF0C\u65E0\u6CD5\u4E00\u952E\u81EA\u52A8\u5347\u7EA7\uFF0C\u8BF7\u6309\u5B98\u65B9\u6E20\u9053\u624B\u52A8\u66F4\u65B0\u3002"
+          ),
+          dshUpgradeResult && React.createElement("div", {
+            style: {
+              marginTop: 10,
+              fontSize: 12,
+              lineHeight: 1.6,
+              color: dshUpgradeResult.ok ? "var(--dsw-alias-state-success-primary,#059669)" : "var(--dsw-alias-state-error-primary,#dc2626)"
+            }
+          }, dshUpgradeResult.message),
+          dshUpgradeResult?.ok && !dismissRestart && React.createElement(
+            "div",
+            {
+              style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }
+            },
+            React.createElement("button", {
+              style: { ...s.btnPri, height: 30, fontSize: 12, padding: "0 14px", background: "var(--dsw-alias-state-success-primary,#059669)" },
+              onClick: handleRestart
+            }, "\u{1F504} \u7ACB\u5373\u91CD\u542F DSH \u670D\u52A1"),
+            React.createElement("button", {
+              style: { ...s.btnGhost, height: 30, fontSize: 12, padding: "0 12px" },
+              onClick: () => setDismissRestart(true)
+            }, "\u7A0D\u540E\u624B\u52A8\u91CD\u542F")
+          ),
+          (restarting || restartStatus) && React.createElement(
+            "div",
+            {
+              style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12,
+                marginTop: 8,
+                color: restartStatus?.phase === "success" ? "var(--dsw-alias-state-success-primary,#059669)" : restartStatus?.phase === "timeout" ? "var(--dsw-alias-state-error-primary,#dc2626)" : "var(--dsw-alias-state-info-primary,#2563eb)",
+                fontWeight: 500
+              }
+            },
+            restartStatus?.phase !== "success" && restartStatus?.phase !== "timeout" && React.createElement("span", {
+              style: { animation: "spin 1s linear infinite", display: "inline-flex" }
+            }, React.createElement(Icons.refresh)),
+            restartStatus?.text || "\u6B63\u5728\u5904\u7406\u2026"
           )
         )
       )
