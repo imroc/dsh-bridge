@@ -251,3 +251,65 @@ test('_checkManagedBinaryVersion 拒绝与钉死版本不符的自管理二进�
     delete process.env.FAKE_CF_MODE;
   }
 });
+
+// issue #35 回归：token 固定域名模式下 --no-autoupdate 必须位于 run 之前。
+// fake cloudflared 在 FAKE_CF_STRICT=1 时模拟真实 CLI 的 flag 解析——若 flag 位置
+// 错误（run 之后）会打印 Incorrect Usage 退出，manager 将无法 ready。
+test('token 固定域名模式：--no-autoupdate 位于 run 前，隧道可正常就绪 (issue #35)', async () => {
+  const rec = stateRecorder();
+  const mgr = new CloudflaredManager({
+    port: 3082,
+    token: 'cf-fixed-domain-token',
+    hostname: 'dsh.example.com',
+    binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
+    retryPolicy: { baseDelayMs: 50, maxDelayMs: 200, maxRetries: 2 },
+    handshakeTimeoutMs: 3000,
+    noAutoupdate: true, // 显式：默认即 true，回归 #35 的场景
+    onStateChange: rec.onState,
+    logger: noopLogger,
+  });
+
+  process.env.FAKE_CF_MODE = 'ready-then-hold';
+  process.env.FAKE_CF_STRICT = '1';
+  try {
+    mgr.start();
+    // 若 flag 顺序错误（#35），fake 会秒退 → 退避重试到 maxRetries → error，永不 ready
+    await rec.waitForPhase('ready', 4000);
+    assert.equal(rec.lastPhase(), 'ready', '固定域名隧道应就绪');
+    assert.equal(mgr.url, 'https://dsh.example.com', '固定域名应作为 URL');
+  } finally {
+    mgr.stop();
+    delete process.env.FAKE_CF_MODE;
+    delete process.env.FAKE_CF_STRICT;
+  }
+});
+
+// 确定性配置错误（Incorrect Usage / 无效 Token 等）应直接 error 提示用户，
+// 而不是误判成"意外退出"退避重连 N 次（issue #35 作者建议 2）。
+test('确定性配置错误（Incorrect Usage）→ 直接 error，不进入退避重连循环', async () => {
+  const rec = stateRecorder();
+  const mgr = new CloudflaredManager({
+    port: 3082,
+    token: 'fake-token',
+    binaryPath: FAKE_BIN,
+    spawnOptions: FAKE_SPAWN_OPTS,
+    retryPolicy: { baseDelayMs: 30, maxDelayMs: 120, maxRetries: 5 },
+    handshakeTimeoutMs: 2000,
+    onStateChange: rec.onState,
+    logger: noopLogger,
+  });
+
+  process.env.FAKE_CF_MODE = 'fatal'; // fake 打印 Incorrect Usage 后退出
+  try {
+    mgr.start();
+    // 应直接进入 error（不经过 reconnecting）
+    await rec.waitForPhase('error', 4000);
+    assert.ok(rec.countPhase('reconnecting') === 0, '确定性错误不应进入重连循环');
+    const errState = rec.states.find((s) => s.phase === 'error');
+    assert.match(errState.detail, /配置错误/, 'error 应说明是配置错误');
+  } finally {
+    mgr.stop();
+    delete process.env.FAKE_CF_MODE;
+  }
+});

@@ -5,6 +5,20 @@ const mode = process.env.FAKE_CF_MODE || 'version';
 
 function write(s) { process.stderr.write(s + '\n'); }
 
+// ── 参数顺序校验（模拟真实 cloudflared 2024.10.0 的 flag 解析）────────────
+// 若 FAKE_CF_STRICT=1：模拟真实 CLI——tunnel 子命令的全局 flag（如 --no-autoupdate）
+// 必须在 run 之前；写在 run 之后会报 Incorrect Usage 并退出。
+// 作用：让"flag 位置错误"这类 bug 在单测阶段暴露，而不是发布后被用户抓到。
+if (process.env.FAKE_CF_STRICT === '1') {
+  const argv = process.argv.slice(2);
+  const runIdx = argv.indexOf('run');
+  const noAutoIdx = argv.indexOf('--no-autoupdate');
+  if (runIdx !== -1 && noAutoIdx > runIdx) {
+    write('Incorrect Usage: flag provided but not defined: -no-autoupdate');
+    process.exit(0);
+  }
+}
+
 if (mode === 'version') {
   // 供 _checkManagedBinaryVersion / --version 校验用；钉死版本测试通过 binaryVersion 注入期望值
   process.stdout.write(`${process.env.FAKE_CF_VERSION || 'cloudflared version 2024.10.0 (built 2024-10-01)'}\n`);
@@ -30,6 +44,10 @@ if (mode === 'crash-after-ready') {
   // 模拟：启动后不打印就绪、一直挂着（握手超时场景）
   write('Connecting...');
   setInterval(() => {}, 1000);
+} else if (mode === 'fatal') {
+  // 模拟确定性配置错误：打印 Incorrect Usage 后退出（如 CLI flag 顺序错误）
+  write('Incorrect Usage: flag provided but not defined: -no-autoupdate');
+  setTimeout(() => process.exit(0), 20);
 } else if (mode === 'ready-then-hold') {
   write('Registered tunnel connection');
   setInterval(() => {}, 1000);
