@@ -139,7 +139,7 @@ dsh plugin --profile web add @wenbin_wb/dsh-bridge@latest
   3. 几秒内自动生成公网 URL 和二维码，点「重置链接」可随时换新。
 
 - **模式 2：Cloudflare Token 固定域名（永久不变 · 免费）**
-  1. 在 [Cloudflare Zero Trust 控制台](https://one.dash.cloudflare.com/) 免费创建 Tunnel 并绑定域名（如 `dsh.yourdomain.com`）；
+  1. 在 [Cloudflare Zero Trust 控制台](https://one.dash.cloudflare.com/) 免费创建 Tunnel 并绑定域名（如 `dsh.yourdomain.com`）——**[📖 从零申请/配置完整教程](docs/cloudflare-fixed-domain.md)**（注册账号 → 接入域名 → 建隧道 → 取 Token → 绑定子域名 → 填回面板）；
   2. 展开卡片底部的 **「⚙️ 高级配置：固定域名 (Cloudflare Token)」**，填入自定义域名与 Tunnel Token 并保存；
   3. 勾选 **「随 DSH 启动自动开启」**，每次 DSH 重启即可自动恢复隧道，**URL 永久固定不变**！
 
