@@ -4695,6 +4695,69 @@ function RemoteDirectoryFlow(props) {
 
 // ---- 插件入口 ----
 
+// iOS Safari 键盘弹起时输入框上下跳动适配。
+//
+// 根因（实测 2026-09）：聊天输入区容器（宿主 wSkVaW_composerSeat）为
+// position:sticky; bottom:0，其滚动容器高度由 100% 链决定。iOS 键盘弹起时
+// visual viewport 收缩，sticky 基准随视口变化 + iOS 反复 scroll 调整 → 每敲一字跳动。
+//
+// 通用解法（不依赖宿主类名）：键盘弹起瞬间找到焦点输入框所属的滚动容器，
+// 把它当前高度用 px 固定（避免随视口继续收缩/重排），键盘收起后还原；
+// 并顺带做一次精确 scrollIntoView，阻止 iOS 二次乱滚。
+function setupIosKeyboardAdapter() {
+  if (typeof window === 'undefined' || !window.visualViewport) return;
+  if (!/iPhone|iPad|iPod/.test(navigator.userAgent || '')) return;
+
+  const vv = window.visualViewport;
+  const isEditable = (el) => el && (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'INPUT');
+  let keyboardOpen = false;
+  let pinnedEl = null;   // 被固定高度的滚动容器
+  let pinnedH = null;    // 原始 height（还原用）
+  let pinnedInline = null;
+
+  const findScrollContainer = (el) => {
+    let n = el;
+    while (n && n !== document.body) {
+      const cs = getComputedStyle(n);
+      if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && n.scrollHeight > n.clientHeight) {
+        return n;
+      }
+      n = n.parentElement;
+    }
+    return null;
+  };
+
+  vv.addEventListener('resize', () => {
+    const ratio = vv.height / window.innerHeight;
+    const nowOpen = ratio < 0.75;
+    if (nowOpen === keyboardOpen) return;
+    keyboardOpen = nowOpen;
+    const el = document.activeElement;
+
+    if (nowOpen) {
+      // 键盘弹起：固定滚动容器高度，防随视口继续收缩导致 sticky 输入框跳动
+      const scroller = isEditable(el) ? findScrollContainer(el) : null;
+      if (scroller) {
+        pinnedEl = scroller;
+        pinnedInline = scroller.style.height || '';
+        pinnedH = scroller.getBoundingClientRect().height;
+        scroller.style.height = `${Math.round(pinnedH)}px`;
+      }
+      requestAnimationFrame(() => {
+        if (isEditable(el)) {
+          try { el.scrollIntoView({ block: 'nearest' }); } catch { /* 忽略 */ }
+        }
+      });
+    } else {
+      // 键盘收起：还原滚动容器高度，让布局回到正常
+      if (pinnedEl) {
+        pinnedEl.style.height = pinnedInline;
+        pinnedEl = null; pinnedH = null; pinnedInline = null;
+      }
+    }
+  });
+}
+
 function apply(ctx) {
   window.__dshClientCtx = ctx;
   const rpcCall = (endpoint, payload, signal) =>
@@ -4702,6 +4765,8 @@ function apply(ctx) {
 
   window.__dshOpenRemoteWorkspaceModal = (onAdded, onPickDirect, onCancel) =>
     showRemoteWorkspaceDialog(rpcCall, onAdded, ctx, onPickDirect, onCancel);
+
+  setupIosKeyboardAdapter();
 
   setupMobileExperience(rpcCall, ctx);
 

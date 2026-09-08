@@ -5885,10 +5885,63 @@ function RemoteDirectoryFlow(props) {
   }, [open, pick]);
   return null;
 }
+function setupIosKeyboardAdapter() {
+  if (typeof window === "undefined" || !window.visualViewport) return;
+  if (!/iPhone|iPad|iPod/.test(navigator.userAgent || "")) return;
+  const vv = window.visualViewport;
+  const isEditable = (el) => el && (el.isContentEditable || el.tagName === "TEXTAREA" || el.tagName === "INPUT");
+  let keyboardOpen = false;
+  let pinnedEl = null;
+  let pinnedH = null;
+  let pinnedInline = null;
+  const findScrollContainer = (el) => {
+    let n = el;
+    while (n && n !== document.body) {
+      const cs = getComputedStyle(n);
+      if ((cs.overflowY === "auto" || cs.overflowY === "scroll") && n.scrollHeight > n.clientHeight) {
+        return n;
+      }
+      n = n.parentElement;
+    }
+    return null;
+  };
+  vv.addEventListener("resize", () => {
+    const ratio = vv.height / window.innerHeight;
+    const nowOpen = ratio < 0.75;
+    if (nowOpen === keyboardOpen) return;
+    keyboardOpen = nowOpen;
+    const el = document.activeElement;
+    if (nowOpen) {
+      const scroller = isEditable(el) ? findScrollContainer(el) : null;
+      if (scroller) {
+        pinnedEl = scroller;
+        pinnedInline = scroller.style.height || "";
+        pinnedH = scroller.getBoundingClientRect().height;
+        scroller.style.height = `${Math.round(pinnedH)}px`;
+      }
+      requestAnimationFrame(() => {
+        if (isEditable(el)) {
+          try {
+            el.scrollIntoView({ block: "nearest" });
+          } catch {
+          }
+        }
+      });
+    } else {
+      if (pinnedEl) {
+        pinnedEl.style.height = pinnedInline;
+        pinnedEl = null;
+        pinnedH = null;
+        pinnedInline = null;
+      }
+    }
+  });
+}
 function apply(ctx) {
   window.__dshClientCtx = ctx;
   const rpcCall = (endpoint, payload, signal) => ctx.connection.rpc.call(BRIDGE_RPC_CHANNEL, endpoint, payload, signal);
   window.__dshOpenRemoteWorkspaceModal = (onAdded, onPickDirect, onCancel) => showRemoteWorkspaceDialog(rpcCall, onAdded, ctx, onPickDirect, onCancel);
+  setupIosKeyboardAdapter();
   setupMobileExperience(rpcCall, ctx);
   const injected = () => ({ pick: () => ctx.workspaces?.pickDirectory?.() });
   ctx.slots.inject(
