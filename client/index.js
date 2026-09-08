@@ -84,6 +84,7 @@ const GITHUB_URL = 'https://github.com/wenbin-wb/dsh-bridge';
 const RELEASES_URL = 'https://github.com/wenbin-wb/dsh-bridge/releases';
 const ISSUES_URL = 'https://github.com/wenbin-wb/dsh-bridge/issues/new';
 const TUNNEL_DOCS_URL = 'https://github.com/wenbin-wb/dsh-bridge/blob/main/docs/custom-tunnel.md';
+const CLOUDFLARE_TUTORIAL_URL = 'https://github.com/wenbin-wb/dsh-bridge/blob/main/docs/cloudflare-fixed-domain.md';
 
 // 生成升级命令（拼接具体版本号；用 add 而非 update，update --latest 受已安装依赖版本约束可能无法升级到最新版）
 function upgradeCommands(latest) {
@@ -753,6 +754,12 @@ const CloudflareConfigForm = React.memo(function CloudflareConfigForm({ token, h
       React.createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary, #6b7280)', marginBottom: 8, lineHeight: 1.5 } },
         '在 Cloudflare Zero Trust 控制台创建 Tunnel 即可获取专属 Token 并绑定自己的域名（如 dsh.yourname.com），每次重启 URL 永不变更。不填则使用默认免登录临时随机域名。'
       ),
+      React.createElement('a', {
+        href: CLOUDFLARE_TUTORIAL_URL,
+        target: '_blank',
+        rel: 'noreferrer',
+        style: { ...s.btnLink, marginBottom: 10 },
+      }, '📖 查看「Cloudflare 固定域名」申请与配置教程'),
       React.createElement('div', { style: { marginBottom: 8 } },
         React.createElement('input', {
           style: s.input,

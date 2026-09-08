@@ -1085,6 +1085,7 @@ var GITHUB_URL = "https://github.com/wenbin-wb/dsh-bridge";
 var RELEASES_URL = "https://github.com/wenbin-wb/dsh-bridge/releases";
 var ISSUES_URL = "https://github.com/wenbin-wb/dsh-bridge/issues/new";
 var TUNNEL_DOCS_URL = "https://github.com/wenbin-wb/dsh-bridge/blob/main/docs/custom-tunnel.md";
+var CLOUDFLARE_TUTORIAL_URL = "https://github.com/wenbin-wb/dsh-bridge/blob/main/docs/cloudflare-fixed-domain.md";
 function upgradeCommands(latest) {
   const spec = `@wenbin_wb/dsh-bridge@${latest}`;
   return [
@@ -1849,6 +1850,12 @@ var CloudflareConfigForm = React.memo(function CloudflareConfigForm2({ token, ho
         { style: { fontSize: 12, color: "var(--dsw-alias-label-secondary, #6b7280)", marginBottom: 8, lineHeight: 1.5 } },
         "\u5728 Cloudflare Zero Trust \u63A7\u5236\u53F0\u521B\u5EFA Tunnel \u5373\u53EF\u83B7\u53D6\u4E13\u5C5E Token \u5E76\u7ED1\u5B9A\u81EA\u5DF1\u7684\u57DF\u540D\uFF08\u5982 dsh.yourname.com\uFF09\uFF0C\u6BCF\u6B21\u91CD\u542F URL \u6C38\u4E0D\u53D8\u66F4\u3002\u4E0D\u586B\u5219\u4F7F\u7528\u9ED8\u8BA4\u514D\u767B\u5F55\u4E34\u65F6\u968F\u673A\u57DF\u540D\u3002"
       ),
+      React.createElement("a", {
+        href: CLOUDFLARE_TUTORIAL_URL,
+        target: "_blank",
+        rel: "noreferrer",
+        style: { ...s.btnLink, marginBottom: 10 }
+      }, "\u{1F4D6} \u67E5\u770B\u300CCloudflare \u56FA\u5B9A\u57DF\u540D\u300D\u7533\u8BF7\u4E0E\u914D\u7F6E\u6559\u7A0B"),
       React.createElement(
         "div",
         { style: { marginBottom: 8 } },
